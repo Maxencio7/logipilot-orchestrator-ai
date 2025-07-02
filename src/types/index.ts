@@ -143,6 +143,197 @@ export type ReportFormData = Omit<Report, 'id' | 'submittedBy' | 'date' | 'attac
   // submittedBy and date will be set automatically on submission
 };
 
+// --- Fleet Types ---
+export type VehicleStatus = 'Active' | 'Maintenance' | 'Idle' | 'Out of Service' | string;
+export type VehicleType = 'Truck' | 'Van' | 'Motorcycle' | 'Drone' | 'Other' | string;
+export type MaintenanceType = 'Scheduled' | 'Repair' | 'Inspection' | string;
+
+export interface Vehicle {
+  id: string; // e.g., TRK001
+  make: string;
+  model: string;
+  year: number;
+  licensePlate: string;
+  vin?: string;
+  type: VehicleType;
+  status: VehicleStatus;
+  currentLocation?: { lat: number; lng: number; address?: string }; // Mocked
+  fuelLevel?: number; // Percentage
+  mileage?: number;
+  assignedDriverId?: string; // Links to a Driver/User ID
+  lastMaintenanceDate?: string; // ISO date string
+  nextMaintenanceDate?: string; // ISO date string
+}
+
+export type VehicleFormData = Partial<Omit<Vehicle, 'id' | 'currentLocation' | 'assignedDriverId'>>;
+
+export interface MaintenanceLog {
+  id: string; // e.g., MAINT001
+  vehicleId: string;
+  date: string; // ISO date string
+  type: MaintenanceType;
+  description: string;
+  cost?: number;
+  serviceProvider?: string;
+  notes?: string;
+  completed: boolean;
+}
+
+export type MaintenanceLogFormData = Omit<MaintenanceLog, 'id'>;
+
+export interface DriverAssignment { // Simplified for now
+  id: string;
+  vehicleId: string;
+  driverId: string; // User ID of the driver
+  driverName?: string; // For display
+  assignmentStartDate: string; // ISO date string
+  assignmentEndDate?: string; // ISO date string (if temporary)
+  notes?: string;
+}
+
+export type DriverAssignmentFormData = Omit<DriverAssignment, 'id' | 'driverName'>;
+
+// --- Tracking Types ---
+export interface TrackingUpdate {
+  timestamp: string; // ISO date string
+  status: ShipmentStatus; // Re-use ShipmentStatus
+  location: string; // e.g., "Warehouse A, Chicago, IL" or "In transit near Denver, CO"
+  notes?: string;
+}
+
+export interface TrackingInfo {
+  shipmentId: string;
+  currentStatus: ShipmentStatus;
+  currentLocation: string; // More detailed than a simple city
+  estimatedDelivery: string; // ETA string or ISO date
+  origin: string;
+  destination: string;
+  carrier?: string;
+  trackingNumber?: string;
+  updates: TrackingUpdate[];
+  mapData?: any; // Placeholder for map coordinates or route data
+}
+
+// --- Financial Document Types ---
+export type DocumentStatus = 'Draft' | 'Sent' | 'Paid' | 'Partially Paid' | 'Overdue' | 'Void' | 'Cancelled' | string;
+
+export interface LineItem {
+  id: string; // or just use index if not persisted independently
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  total: number; // quantity * unitPrice
+}
+
+interface BaseDocument {
+  id: string; // e.g., INV001, FN001, RCT001
+  documentNumber: string; // User-friendly or legally required number
+  clientId: string; // Link to Client.id
+  clientName?: string; // For display convenience
+  issueDate: string; // ISO date string
+  dueDate?: string; // ISO date string (esp. for Invoices, FeeNotes)
+  lineItems: LineItem[];
+  subtotal: number;
+  taxRate?: number; // Percentage, e.g., 0.07 for 7%
+  taxAmount?: number;
+  totalAmount: number;
+  currency: string; // e.g., "USD", "EUR"
+  notes?: string;
+  status: DocumentStatus;
+  createdAt: string; // ISO date string
+  updatedAt: string; // ISO date string
+}
+
+export interface Invoice extends BaseDocument {
+  paymentTerms?: string;
+  linkedFeeNoteIds?: string[];
+  linkedReceiptIds?: string[];
+}
+
+export interface FeeNote extends BaseDocument {
+  // Specific fields for Fee Notes, if any
+  // Could be structurally similar to Invoice but used for different purposes
+  relatedInvoiceId?: string;
+}
+
+export interface Receipt extends BaseDocument {
+  paymentDate: string; // ISO date string
+  paymentMethod: string; // e.g., "Credit Card", "Bank Transfer", "Cash"
+  transactionId?: string;
+  relatedInvoiceId?: string; // Link to Invoice.id it pays for
+  relatedFeeNoteId?: string;
+}
+
+// FormData types
+export type LineItemFormData = Omit<LineItem, 'id' | 'total'>;
+export type InvoiceFormData = Omit<Invoice, 'id' | 'documentNumber' | 'subtotal' | 'taxAmount' | 'totalAmount' | 'createdAt' | 'updatedAt' | 'clientName' | 'linkedFeeNoteIds' | 'linkedReceiptIds'> & { lineItems: LineItemFormData[] };
+export type FeeNoteFormData = Omit<FeeNote, 'id' | 'documentNumber' | 'subtotal' | 'taxAmount' | 'totalAmount' | 'createdAt' | 'updatedAt' | 'clientName' | 'relatedInvoiceId'> & { lineItems: LineItemFormData[] };
+export type ReceiptFormData = Omit<Receipt, 'id' | 'documentNumber' | 'subtotal' | 'taxAmount' | 'totalAmount' | 'createdAt' | 'updatedAt' | 'clientName' | 'relatedInvoiceId' | 'relatedFeeNoteId'> & { lineItems: LineItemFormData[] };
+
+// --- Settings Types ---
+export interface UserProfileSettings {
+  fullName?: string;
+  email?: string; // Usually non-editable or requires verification
+  avatarUrl?: string;
+  jobTitle?: string;
+  phoneNumber?: string;
+  // password change would be a separate flow, not direct data field
+}
+
+export interface NotificationPreferences {
+  emailNotifications: {
+    newShipmentUpdates?: boolean;
+    shipmentDelays?: boolean;
+    clientMessages?: boolean;
+    systemAlerts?: boolean;
+    weeklySummary?: boolean;
+  };
+  pushNotifications: { // For potential future mobile app
+    enabled?: boolean;
+    // similar categories as email
+  };
+  inAppNotifications: { // Controls what appears in the bell icon
+    showAll?: boolean;
+    // filter by severity, etc.
+  }
+}
+
+export interface UserSettings {
+  id: string; // userId
+  profile: UserProfileSettings;
+  notifications: NotificationPreferences;
+  theme?: 'light' | 'dark' | 'system';
+  language?: string; // e.g., 'en', 'es'
+  timezone?: string; // e.g., 'America/New_York'
+}
+
+export interface OrganizationSettings {
+  id: string; // orgId
+  organizationName: string;
+  logoUrl?: string;
+  address?: {
+    street: string;
+    city: string;
+    state: string;
+    zipCode: string;
+    country: string;
+  };
+  primaryContactEmail?: string;
+  defaultCurrency?: string; // e.g., "USD"
+  defaultTimezone?: string;
+  slaTargets?: { // Service Level Agreement
+    responseTimeHours?: number;
+    deliveryAccuracyPercent?: number;
+  };
+  // other org-level configs
+}
+
+// FormData types for settings - usually partial updates
+export type UserProfileSettingsFormData = Partial<UserProfileSettings>;
+export type NotificationPreferencesFormData = Partial<NotificationPreferences>; // May need deep partial
+export type OrganizationSettingsFormData = Partial<Omit<OrganizationSettings, 'id'>>;
+
+
 // --- Alert/Notification Types ---
 export interface NotificationAlert {
   id: string;

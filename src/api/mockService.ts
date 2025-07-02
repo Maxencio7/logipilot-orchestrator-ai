@@ -276,6 +276,408 @@ export const getClientActivitySummary = (clientId: string): Promise<ClientActivi
     });
 };
 
+// --- Settings Mock API ---
+let mockUserSettingsDB: UserSettings = {
+    id: 'USER001', // Assuming a single current user for now
+    profile: {
+        fullName: 'Jules Verne',
+        email: 'jules.agent@example.com',
+        jobTitle: 'Lead Logistics Coordinator',
+        phoneNumber: '555-123-4567',
+        avatarUrl: '/placeholder.svg', // Default placeholder
+    },
+    notifications: {
+        emailNotifications: {
+            newShipmentUpdates: true,
+            shipmentDelays: true,
+            clientMessages: false,
+            systemAlerts: true,
+            weeklySummary: false,
+        },
+        pushNotifications: { enabled: false },
+        inAppNotifications: { showAll: true },
+    },
+    theme: 'light',
+    language: 'en',
+    timezone: 'America/New_York',
+};
+
+let mockOrgSettingsDB: OrganizationSettings = {
+    id: 'ORG001',
+    organizationName: 'LogiPilot Corp.',
+    logoUrl: '/placeholder.svg', // Default placeholder logo
+    address: { street: '123 Main St', city: 'Anytown', state: 'CA', zipCode: '90210', country: 'USA' },
+    primaryContactEmail: 'contact@logipilot.com',
+    defaultCurrency: 'USD',
+    defaultTimezone: 'America/New_York',
+    slaTargets: { responseTimeHours: 24, deliveryAccuracyPercent: 98.5 },
+};
+
+export const getUserSettings = (userId: string = "USER001"): Promise<UserSettings> => {
+    console.log('Mock API: Fetching user settings for', userId);
+    return new Promise(resolve => setTimeout(() => resolve(JSON.parse(JSON.stringify(mockUserSettingsDB))), 300));
+};
+
+export const updateUserSettings = (userId: string = "USER001", data: Partial<UserSettings>): Promise<UserSettings> => {
+    console.log('Mock API: Updating user settings for', userId, data);
+    return new Promise(resolve => {
+        // Deep merge for nested objects like profile and notifications
+        if (data.profile) mockUserSettingsDB.profile = { ...mockUserSettingsDB.profile, ...data.profile };
+        if (data.notifications) {
+             mockUserSettingsDB.notifications = {
+                ...mockUserSettingsDB.notifications,
+                ...data.notifications,
+                emailNotifications: { ...mockUserSettingsDB.notifications.emailNotifications, ...data.notifications.emailNotifications },
+                pushNotifications: { ...mockUserSettingsDB.notifications.pushNotifications, ...data.notifications.pushNotifications },
+                inAppNotifications: { ...mockUserSettingsDB.notifications.inAppNotifications, ...data.notifications.inAppNotifications },
+             };
+        }
+        if (data.theme) mockUserSettingsDB.theme = data.theme;
+        if (data.language) mockUserSettingsDB.language = data.language;
+        if (data.timezone) mockUserSettingsDB.timezone = data.timezone;
+
+        setTimeout(() => resolve(JSON.parse(JSON.stringify(mockUserSettingsDB))), 500);
+    });
+};
+
+export const getOrganizationSettings = (orgId: string = "ORG001"): Promise<OrganizationSettings> => {
+    console.log('Mock API: Fetching organization settings for', orgId);
+    return new Promise(resolve => setTimeout(() => resolve(JSON.parse(JSON.stringify(mockOrgSettingsDB))), 300));
+};
+
+export const updateOrganizationSettings = (orgId: string = "ORG001", data: OrganizationSettingsFormData): Promise<OrganizationSettings> => {
+    console.log('Mock API: Updating organization settings for', orgId, data);
+    return new Promise(resolve => {
+        mockOrgSettingsDB = { ...mockOrgSettingsDB, ...data };
+        setTimeout(() => resolve(JSON.parse(JSON.stringify(mockOrgSettingsDB))), 500);
+    });
+};
+
+// --- Financial Documents Mock API ---
+let mockInvoicesDB: Invoice[] = [
+    { id: 'INV001', documentNumber: '2023-001', clientId: 'CL001', clientName: 'TechCorp Inc.', issueDate: new Date(Date.now() - 30 * 24*60*60*1000).toISOString(), dueDate: new Date(Date.now() - 0 * 24*60*60*1000).toISOString(), lineItems: [{id: 'L1', description: 'Freight Forwarding LAX-JFK', quantity: 1, unitPrice: 1200, total: 1200}, {id: 'L2', description: 'Customs Clearance Fee', quantity: 1, unitPrice: 300, total: 300}], subtotal: 1500, taxRate: 0.08, taxAmount: 120, totalAmount: 1620, currency: 'USD', status: 'Sent', paymentTerms: 'Net 30', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+    { id: 'INV002', documentNumber: '2023-002', clientId: 'CL002', clientName: 'Global Logistics', issueDate: new Date(Date.now() - 15 * 24*60*60*1000).toISOString(), dueDate: new Date(Date.now() + 15 * 24*60*60*1000).toISOString(), lineItems: [{id: 'L1', description: 'Warehousing Services - Oct', quantity: 100, unitPrice: 10, total: 1000}], subtotal: 1000, taxAmount: 0, totalAmount: 1000, currency: 'USD', status: 'Paid', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), linkedReceiptIds: ['RCT001'] },
+];
+let mockFeeNotesDB: FeeNote[] = [
+    { id: 'FN001', documentNumber: 'FN-2023-001', clientId: 'CL001', clientName: 'TechCorp Inc.', issueDate: new Date(Date.now() - 5 * 24*60*60*1000).toISOString(), lineItems: [{id: 'L1', description: 'Late Payment Fee for INV001', quantity: 1, unitPrice: 50, total: 50}], subtotal: 50, totalAmount: 50, currency: 'USD', status: 'Sent', relatedInvoiceId: 'INV001', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
+];
+let mockReceiptsDB: Receipt[] = [
+    { id: 'RCT001', documentNumber: 'RCPT-2023-001', clientId: 'CL002', clientName: 'Global Logistics', issueDate: new Date(Date.now() - 10 * 24*60*60*1000).toISOString(), paymentDate: new Date(Date.now() - 10 * 24*60*60*1000).toISOString(), paymentMethod: 'Bank Transfer', lineItems: [{id: 'L1', description: 'Payment for INV002', quantity:1, unitPrice: 1000, total: 1000}], subtotal: 1000, totalAmount: 1000, currency: 'USD', status: 'Paid', relatedInvoiceId: 'INV002', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
+];
+
+const calculateDocumentTotals = (lineItems: LineItemFormData[], taxRate?: number): { subtotal: number, taxAmount: number, totalAmount: number, itemsWithTotals: LineItem[] } => {
+    let subtotal = 0;
+    const itemsWithTotals: LineItem[] = lineItems.map((item, index) => {
+        const total = item.quantity * item.unitPrice;
+        subtotal += total;
+        return { ...item, id: `li-${Date.now()}-${index}`, total };
+    });
+    const currentTaxRate = taxRate || 0;
+    const taxAmount = subtotal * currentTaxRate;
+    const totalAmount = subtotal + taxAmount;
+    return { subtotal, taxAmount, totalAmount, itemsWithTotals };
+};
+
+// Invoice CRUD
+export const getInvoices = (filters?: { status?: DocumentStatus; clientId?: string }): Promise<Invoice[]> => {
+    return new Promise(resolve => setTimeout(() => {
+        let result = [...mockInvoicesDB];
+        if (filters?.status) result = result.filter(inv => inv.status === filters.status);
+        if (filters?.clientId) result = result.filter(inv => inv.clientId === filters.clientId);
+        resolve(result.sort((a,b) => new Date(b.issueDate).getTime() - new Date(a.issueDate).getTime()));
+    }, 400));
+};
+export const createInvoice = (data: InvoiceFormData): Promise<Invoice> => {
+    return new Promise(resolve => setTimeout(() => {
+        const client = mockClientsDB.find(c => c.id === data.clientId);
+        const { subtotal, taxAmount, totalAmount, itemsWithTotals } = calculateDocumentTotals(data.lineItems, data.taxRate);
+        const newInvoice: Invoice = {
+            ...data,
+            id: generateId('INV'),
+            documentNumber: `INV-${new Date().getFullYear()}-${mockInvoicesDB.length + 1}`,
+            clientName: client?.name || 'Unknown Client',
+            lineItems: itemsWithTotals,
+            subtotal, taxAmount, totalAmount,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+        };
+        mockInvoicesDB.push(newInvoice);
+        resolve(newInvoice);
+    }, 500));
+};
+export const updateInvoice = (id: string, data: Partial<InvoiceFormData>): Promise<Invoice | undefined> => {
+    return new Promise(resolve => setTimeout(() => {
+        const index = mockInvoicesDB.findIndex(inv => inv.id === id);
+        if (index !== -1) {
+            const existingInvoice = mockInvoicesDB[index];
+            const updatedData = { ...existingInvoice, ...data };
+            if (data.lineItems || data.taxRate !== undefined) {
+                 const { subtotal, taxAmount, totalAmount, itemsWithTotals } = calculateDocumentTotals(data.lineItems || existingInvoice.lineItems, data.taxRate !== undefined ? data.taxRate : existingInvoice.taxRate);
+                 updatedData.lineItems = itemsWithTotals;
+                 updatedData.subtotal = subtotal;
+                 updatedData.taxAmount = taxAmount;
+                 updatedData.totalAmount = totalAmount;
+            }
+            mockInvoicesDB[index] = { ...updatedData, updatedAt: new Date().toISOString() } as Invoice;
+            resolve(mockInvoicesDB[index]);
+        } else resolve(undefined);
+    }, 500));
+};
+export const deleteInvoice = (id: string): Promise<boolean> => {
+    return new Promise(resolve => setTimeout(() => {
+        const initialLength = mockInvoicesDB.length;
+        mockInvoicesDB = mockInvoicesDB.filter(inv => inv.id !== id);
+        resolve(mockInvoicesDB.length < initialLength);
+    }, 300));
+};
+
+// Similar CRUD for FeeNotes and Receipts can be added here...
+// For brevity, I'll add simplified versions for get, create.
+
+// FeeNote CRUD
+export const getFeeNotes = (filters?: { status?: DocumentStatus; clientId?: string }): Promise<FeeNote[]> => {
+    return new Promise(resolve => setTimeout(() => {
+        // Basic filtering, expand as needed
+        resolve([...mockFeeNotesDB].sort((a,b) => new Date(b.issueDate).getTime() - new Date(a.issueDate).getTime()));
+    }, 400));
+};
+export const createFeeNote = (data: FeeNoteFormData): Promise<FeeNote> => {
+    return new Promise(resolve => setTimeout(() => {
+        const client = mockClientsDB.find(c => c.id === data.clientId);
+        const { subtotal, taxAmount, totalAmount, itemsWithTotals } = calculateDocumentTotals(data.lineItems, data.taxRate);
+        const newFeeNote: FeeNote = {
+            ...data,
+            id: generateId('FN'),
+            documentNumber: `FN-${new Date().getFullYear()}-${mockFeeNotesDB.length + 1}`,
+            clientName: client?.name || 'Unknown Client',
+            lineItems: itemsWithTotals,
+            subtotal, taxAmount, totalAmount,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+        };
+        mockFeeNotesDB.push(newFeeNote);
+        resolve(newFeeNote);
+    }, 500));
+};
+
+// Receipt CRUD
+export const getReceipts = (filters?: { clientId?: string }): Promise<Receipt[]> => {
+    return new Promise(resolve => setTimeout(() => {
+        resolve([...mockReceiptsDB].sort((a,b) => new Date(b.issueDate).getTime() - new Date(a.issueDate).getTime()));
+    }, 400));
+};
+export const createReceipt = (data: ReceiptFormData): Promise<Receipt> => {
+    return new Promise(resolve => setTimeout(() => {
+        const client = mockClientsDB.find(c => c.id === data.clientId);
+        const { subtotal, taxAmount, totalAmount, itemsWithTotals } = calculateDocumentTotals(data.lineItems, data.taxRate);
+        const newReceipt: Receipt = {
+            ...data,
+            id: generateId('RCT'),
+            documentNumber: `RCT-${new Date().getFullYear()}-${mockReceiptsDB.length + 1}`,
+            clientName: client?.name || 'Unknown Client',
+            lineItems: itemsWithTotals,
+            subtotal, taxAmount, totalAmount,
+            status: 'Paid', // Receipts are typically for paid amounts
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+        };
+        mockReceiptsDB.push(newReceipt);
+        // Optionally mark related invoice as paid
+        if (newReceipt.relatedInvoiceId) {
+            const invIdx = mockInvoicesDB.findIndex(inv => inv.id === newReceipt.relatedInvoiceId);
+            if (invIdx !== -1) {
+                mockInvoicesDB[invIdx].status = 'Paid';
+                mockInvoicesDB[invIdx].linkedReceiptIds = [...(mockInvoicesDB[invIdx].linkedReceiptIds || []), newReceipt.id];
+            }
+        }
+        resolve(newReceipt);
+    }, 500));
+};
+
+// --- Fleet Mock API ---
+let mockVehiclesDB: Vehicle[] = [
+    { id: 'TRK001', make: 'Volvo', model: 'VNL 760', year: 2021, licensePlate: 'FLT-001', type: 'Truck', status: 'Active', fuelLevel: 75, mileage: 120500, assignedDriverId: 'DRV001', lastMaintenanceDate: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString(), nextMaintenanceDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), currentLocation: { lat: 34.0522, lng: -118.2437, address: "Los Angeles, CA" } },
+    { id: 'VAN001', make: 'Ford', model: 'Transit', year: 2022, licensePlate: 'FLT-002', type: 'Van', status: 'Idle', fuelLevel: 90, mileage: 35200, lastMaintenanceDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(), nextMaintenanceDate: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString(), currentLocation: { lat: 40.7128, lng: -74.0060, address: "New York, NY" } },
+    { id: 'TRK002', make: 'Kenworth', model: 'T680', year: 2020, licensePlate: 'FLT-003', type: 'Truck', status: 'Maintenance', fuelLevel: 30, mileage: 250000, lastMaintenanceDate: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(), nextMaintenanceDate: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000).toISOString(), currentLocation: { lat: 40.7128, lng: -74.0060, address: "Service Center, NY" } },
+];
+let mockMaintenanceLogsDB: MaintenanceLog[] = [
+    { id: 'MAINT001', vehicleId: 'TRK001', date: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString(), type: 'Scheduled', description: 'Oil change, filter replacement, tire rotation', cost: 350, serviceProvider: 'Fleet Maintenance Co.', completed: true },
+    { id: 'MAINT002', vehicleId: 'TRK002', date: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(), type: 'Repair', description: 'Engine diagnostics and coolant system repair', cost: 1200, serviceProvider: 'Heavy Duty Repairs Inc.', completed: false },
+    { id: 'MAINT003', vehicleId: 'VAN001', date: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(), type: 'Inspection', description: 'Annual safety inspection', cost: 150, serviceProvider: 'State Inspection Services', completed: true },
+];
+let mockDriverAssignmentsDB: DriverAssignment[] = [
+    { id: 'ASSIGN001', vehicleId: 'TRK001', driverId: 'DRV001', driverName: 'John Ryder', assignmentStartDate: new Date(Date.now() - 100 * 24 * 60 * 60 * 1000).toISOString() },
+    { id: 'ASSIGN002', vehicleId: 'VAN001', driverId: 'DRV002', driverName: 'Jane Miles', assignmentStartDate: new Date(Date.now() - 50 * 24 * 60 * 60 * 1000).toISOString(), assignmentEndDate: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString(), notes: 'Temporary assignment' },
+];
+
+const generateId = (prefix: string) => `${prefix.toUpperCase()}${String(Math.random().toString(36).substr(2, 3) + Date.now().toString(36).substr(4,3)).toUpperCase()}`;
+
+// Vehicle CRUD
+export const getVehicles = (filters?: { status?: VehicleStatus; type?: VehicleType }): Promise<Vehicle[]> => {
+    return new Promise(resolve => setTimeout(() => {
+        let result = [...mockVehiclesDB];
+        if (filters?.status) result = result.filter(v => v.status === filters.status);
+        if (filters?.type) result = result.filter(v => v.type === filters.type);
+        resolve(result);
+    }, 400));
+};
+export const createVehicle = (data: VehicleFormData): Promise<Vehicle> => {
+    return new Promise(resolve => setTimeout(() => {
+        const newVehicle: Vehicle = { ...data, id: generateId('VCL'), assignedDriverId: undefined, currentLocation: { lat: 0, lng: 0, address: "Unknown" } } as Vehicle; // Ensure all fields
+        mockVehiclesDB.push(newVehicle);
+        resolve(newVehicle);
+    }, 500));
+};
+export const updateVehicle = (id: string, data: Partial<VehicleFormData>): Promise<Vehicle | undefined> => {
+    return new Promise(resolve => setTimeout(() => {
+        const index = mockVehiclesDB.findIndex(v => v.id === id);
+        if (index !== -1) {
+            mockVehiclesDB[index] = { ...mockVehiclesDB[index], ...data };
+            resolve(mockVehiclesDB[index]);
+        } else resolve(undefined);
+    }, 500));
+};
+export const deleteVehicle = (id: string): Promise<boolean> => {
+    return new Promise(resolve => setTimeout(() => {
+        const initialLength = mockVehiclesDB.length;
+        mockVehiclesDB = mockVehiclesDB.filter(v => v.id !== id);
+        resolve(mockVehiclesDB.length < initialLength);
+    }, 300));
+};
+
+// --- Tracking Mock API ---
+export const getTrackingDetailsByShipmentId = (shipmentId: string): Promise<TrackingInfo | undefined> => {
+    console.log('Mock API: Fetching tracking details for Shipment ID:', shipmentId);
+    return new Promise((resolve, reject) => {
+        setTimeout(() => {
+            // Try to find a shipment from our mockShipmentsDB
+            const shipment = mockShipmentsDB.find(s => s.id.toLowerCase() === shipmentId.toLowerCase());
+
+            if (shipment) {
+                const updates: TrackingUpdate[] = [
+                    { timestamp: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(), status: 'Processing', location: shipment.origin, notes: 'Shipment created and processed at origin facility.' },
+                    { timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), status: 'In Transit', location: `Departed from ${shipment.origin}`, notes: 'On its way to destination.' },
+                ];
+                if (shipment.status === 'Delivered') {
+                     updates.push({ timestamp: new Date(Date.now() - 10 * 60 * 1000).toISOString(), status: 'Delivered', location: shipment.destination, notes: 'Package delivered successfully.' });
+                } else if (shipment.status === 'Delayed') {
+                     updates.push({ timestamp: new Date(Date.now() - 15 * 60 * 1000).toISOString(), status: 'Delayed', location: `Hub near ${shipment.destination}`, notes: shipment.notes || 'Delay reported due to unforeseen circumstances.' });
+                } else if (shipment.status === 'In Transit') {
+                     updates.push({ timestamp: new Date(Date.now() - 30 * 60 * 1000).toISOString(), status: 'In Transit', location: `Currently near Midpoint City, State`, notes: 'Proceeding as scheduled.'});
+                }
+
+
+                const trackingInfo: TrackingInfo = {
+                    shipmentId: shipment.id,
+                    currentStatus: shipment.status,
+                    currentLocation: updates[updates.length-1].location, // Last update location
+                    estimatedDelivery: shipment.eta || 'Pending',
+                    origin: shipment.origin,
+                    destination: shipment.destination,
+                    carrier: shipment.carrier,
+                    trackingNumber: shipment.trackingNumber,
+                    updates: updates.sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()), // Ensure sorted desc
+                };
+                console.log('Mock API: Responding with tracking info:', trackingInfo);
+                resolve(trackingInfo);
+            } else {
+                console.log('Mock API: No shipment found for tracking ID:', shipmentId);
+                resolve(undefined); // Or reject(new Error('Shipment not found'))
+            }
+        }, 600);
+    });
+};
+
+// Maintenance Log CRUD
+export const getMaintenanceLogsForVehicle = (vehicleId: string): Promise<MaintenanceLog[]> => {
+    return new Promise(resolve => setTimeout(() => {
+        resolve(mockMaintenanceLogsDB.filter(log => log.vehicleId === vehicleId).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+    }, 400));
+};
+export const createMaintenanceLog = (data: MaintenanceLogFormData): Promise<MaintenanceLog> => {
+    return new Promise(resolve => setTimeout(() => {
+        const newLog: MaintenanceLog = { ...data, id: generateId('MAINT') };
+        mockMaintenanceLogsDB.push(newLog);
+        resolve(newLog);
+    }, 500));
+};
+export const updateMaintenanceLog = (id: string, data: Partial<MaintenanceLogFormData>): Promise<MaintenanceLog | undefined> => {
+     return new Promise(resolve => setTimeout(() => {
+        const index = mockMaintenanceLogsDB.findIndex(log => log.id === id);
+        if (index !== -1) {
+            mockMaintenanceLogsDB[index] = { ...mockMaintenanceLogsDB[index], ...data };
+            resolve(mockMaintenanceLogsDB[index]);
+        } else resolve(undefined);
+    }, 500));
+};
+export const deleteMaintenanceLog = (id: string): Promise<boolean> => {
+    return new Promise(resolve => setTimeout(() => {
+        const initialLength = mockMaintenanceLogsDB.length;
+        mockMaintenanceLogsDB = mockMaintenanceLogsDB.filter(log => log.id !== id);
+        resolve(mockMaintenanceLogsDB.length < initialLength);
+    }, 300));
+};
+
+
+// Driver Assignment CRUD
+export const getDriverAssignmentsForVehicle = (vehicleId: string): Promise<DriverAssignment[]> => {
+     return new Promise(resolve => setTimeout(() => {
+        resolve(mockDriverAssignmentsDB.filter(ass => ass.vehicleId === vehicleId).sort((a,b) => new Date(b.assignmentStartDate).getTime() - new Date(a.assignmentStartDate).getTime()));
+    }, 400));
+};
+export const createDriverAssignment = (data: DriverAssignmentFormData): Promise<DriverAssignment> => {
+    return new Promise(resolve => setTimeout(() => {
+        // In a real app, driverName would be fetched based on driverId
+        const newAssignment: DriverAssignment = { ...data, id: generateId('ASSIGN'), driverName: `Driver ${data.driverId.substring(0,3)}` };
+        mockDriverAssignmentsDB.push(newAssignment);
+        // Update vehicle's assignedDriverId
+        const vehicleIndex = mockVehiclesDB.findIndex(v => v.id === data.vehicleId);
+        if (vehicleIndex !== -1 && !data.assignmentEndDate) { // Only set if it's an ongoing assignment
+             mockVehiclesDB[vehicleIndex].assignedDriverId = data.driverId;
+        }
+        resolve(newAssignment);
+    }, 500));
+};
+export const updateDriverAssignment = (id: string, data: Partial<DriverAssignmentFormData>): Promise<DriverAssignment | undefined> => {
+    return new Promise(resolve => setTimeout(() => {
+        const index = mockDriverAssignmentsDB.findIndex(ass => ass.id === id);
+        if (index !== -1) {
+            const oldAssignment = mockDriverAssignmentsDB[index];
+            mockDriverAssignmentsDB[index] = { ...oldAssignment, ...data };
+
+            // Update vehicle's assignedDriverId if necessary
+            const vehicleIndex = mockVehiclesDB.findIndex(v => v.id === mockDriverAssignmentsDB[index].vehicleId);
+            if (vehicleIndex !== -1) {
+                if (mockDriverAssignmentsDB[index].assignmentEndDate) { // Assignment ended
+                    if (mockVehiclesDB[vehicleIndex].assignedDriverId === mockDriverAssignmentsDB[index].driverId) {
+                        mockVehiclesDB[vehicleIndex].assignedDriverId = undefined;
+                    }
+                } else { // Ongoing assignment
+                     mockVehiclesDB[vehicleIndex].assignedDriverId = mockDriverAssignmentsDB[index].driverId;
+                }
+            }
+            resolve(mockDriverAssignmentsDB[index]);
+        } else resolve(undefined);
+    }, 500));
+};
+export const deleteDriverAssignment = (id: string): Promise<boolean> => {
+     return new Promise(resolve => setTimeout(() => {
+        const assignment = mockDriverAssignmentsDB.find(ass => ass.id === id);
+        const initialLength = mockDriverAssignmentsDB.length;
+        mockDriverAssignmentsDB = mockDriverAssignmentsDB.filter(ass => ass.id !== id);
+        const success = mockDriverAssignmentsDB.length < initialLength;
+
+        if (success && assignment) {
+            // If the deleted assignment was active, clear vehicle's assignedDriverId
+            const vehicleIndex = mockVehiclesDB.findIndex(v => v.id === assignment.vehicleId);
+            if (vehicleIndex !== -1 && mockVehiclesDB[vehicleIndex].assignedDriverId === assignment.driverId && !assignment.assignmentEndDate) {
+                 mockVehiclesDB[vehicleIndex].assignedDriverId = undefined;
+            }
+        }
+        resolve(success);
+    }, 300));
+};
+
 // --- Alerts / Notifications Mock API ---
 let mockNotificationsDB: NotificationAlert[] = [
     { id: 'notif001', title: 'Shipment SH001 Delayed', description: 'ETA updated due to weather conditions.', severity: 'High', category: 'Shipment', timestamp: new Date(Date.now() - 1 * 60 * 1000).toISOString(), read: false, link: '/shipments?id=SH001' },
