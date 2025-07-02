@@ -12,6 +12,8 @@ import Dashboard from "@/components/Dashboard"; // Assuming Dashboard component 
 import AIAssistant from "@/components/AIAssistant";
 import ShipmentsPage from "./pages/ShipmentsPage";
 import ClientsPage from "./pages/ClientsPage";
+import ReportsPage from "./pages/ReportsPage";
+import AnalyticsPage from "./pages/AnalyticsPage"; // Import AnalyticsPage
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -28,6 +30,8 @@ const App = () => (
             <Route path="dashboard" element={<Dashboard />} />
             <Route path="shipments" element={<ShipmentsPage />} />
             <Route path="clients" element={<ClientsPage />} />
+            <Route path="reports" element={<ReportsPage />} />
+            <Route path="analytics" element={<AnalyticsPage />} /> {/* Add AnalyticsPage route */}
             <Route path="ai-assistant" element={<AIAssistant />} />
             {/* Add other main feature routes here as children of MainLayout */}
           </Route>
