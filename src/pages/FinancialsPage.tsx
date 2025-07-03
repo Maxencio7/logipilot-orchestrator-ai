@@ -60,9 +60,17 @@ const FinancialsPage = () => {
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [clients, setClients] = useState<Client[]>([]); // For dropdowns
 
-  // Loading states
-  const [isLoading, setIsLoading] = useState<'invoices'|'feenotes'|'receipts'|false>(false);
-  const [error, setError] = useState<Error | null>(null);
+  // Pagination states
+  const [invoicePagination, setInvoicePagination] = useState<api.PaginationInfo | null>(null);
+  const [feeNotePagination, setFeeNotePagination] = useState<api.PaginationInfo | null>(null);
+  const [receiptPagination, setReceiptPagination] = useState<api.PaginationInfo | null>(null);
+
+
+  // Loading states - more granular
+  const [isLoadingInvoices, setIsLoadingInvoices] = useState(false);
+  const [isLoadingFeeNotes, setIsLoadingFeeNotes] = useState(false);
+  const [isLoadingReceipts, setIsLoadingReceipts] = useState(false);
+  const [generalError, setGeneralError] = useState<Error | null>(null); // For table-level errors
 
   // Form/Dialog states
   const [isInvoiceFormOpen, setIsInvoiceFormOpen] = useState(false);
@@ -73,14 +81,14 @@ const FinancialsPage = () => {
   const [editingReceipt, setEditingReceipt] = useState<Receipt | null>(null);
 
   const [documentToView, setDocumentToView] = useState<Invoice | FeeNote | Receipt | null>(null);
-  const [documentToDelete, setDocumentToDelete] = useState<{type: 'invoice'|'feenote'|'receipt', id: string} | null>(null);
+  const [documentToDelete, setDocumentToDelete] = useState<{type: 'invoice'|'feenote'|'receipt', id: string, name?: string} | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
 
   // --- Form Hooks ---
   const invoiceForm = useForm<InvoiceFormData>({ resolver: zodResolver(invoiceFormSchema), defaultValues: { currency: 'USD', status: 'Draft', lineItems: [{description: '', quantity: 1, unitPrice: 0}] } });
   const { fields: invoiceLineItems, append: appendInvoiceLineItem, remove: removeInvoiceLineItem } = useFieldArray({ control: invoiceForm.control, name: "lineItems" });
 
-  // Similar forms for FeeNote and Receipt would be needed
   const feeNoteForm = useForm<FeeNoteFormData>({ resolver: zodResolver(feeNoteFormSchema), defaultValues: { currency: 'USD', status: 'Draft', lineItems: [{description: '', quantity: 1, unitPrice: 0}] } });
   const { fields: feeNoteLineItems, append: appendFeeNoteLineItem, remove: removeFeeNoteLineItem } = useFieldArray({ control: feeNoteForm.control, name: "lineItems" });
 
@@ -98,33 +106,53 @@ const FinancialsPage = () => {
     }
   }, []);
 
-  const fetchInvoices = useCallback(async () => {
-    setIsLoading('invoices'); setError(null);
-    try { const data = await api.getInvoices(); setInvoices(data); }
-    catch (err: any) { setError(err); toast({ title: "Error", description: "Failed to fetch invoices.", variant: "destructive" });}
-    finally { setIsLoading(false); }
+  const fetchInvoices = useCallback(async (page: number = 1, pageSize: number = 10) => {
+    setIsLoadingInvoices(true); setGeneralError(null);
+    try {
+      const response = await api.getInvoices({page, pageSize} as any); // Cast as any for now if getInvoices mock doesn't expect page/pageSize
+      setInvoices(response.data || response); // Adapt to actual response structure from apiService vs mock
+      // setInvoicePagination(response.pagination || null); // Assuming pagination comes from response
+    }
+    catch (err: any) { setGeneralError(err); toast({ title: "Error", description: "Failed to fetch invoices.", variant: "destructive" });}
+    finally { setIsLoadingInvoices(false); }
   }, [toast]);
 
-  const fetchFeeNotes = useCallback(async () => {
-    setIsLoading('feenotes'); setError(null);
-    try { const data = await api.getFeeNotes(); setFeeNotes(data); }
-    catch (err: any) { setError(err); toast({ title: "Error", description: "Failed to fetch fee notes.", variant: "destructive" });}
-    finally { setIsLoading(false); }
+  const fetchFeeNotes = useCallback(async (page: number = 1, pageSize: number = 10) => {
+    setIsLoadingFeeNotes(true); setGeneralError(null);
+    try {
+      const response = await api.getFeeNotes({page, pageSize} as any);
+      setFeeNotes(response.data || response);
+      // setFeeNotePagination(response.pagination || null);
+    }
+    catch (err: any) { setGeneralError(err); toast({ title: "Error", description: "Failed to fetch fee notes.", variant: "destructive" });}
+    finally { setIsLoadingFeeNotes(false); }
   }, [toast]);
 
-  const fetchReceipts = useCallback(async () => {
-    setIsLoading('receipts'); setError(null);
-    try { const data = await api.getReceipts(); setReceipts(data); }
-    catch (err: any) { setError(err); toast({ title: "Error", description: "Failed to fetch receipts.", variant: "destructive" });}
-    finally { setIsLoading(false); }
+  const fetchReceipts = useCallback(async (page: number = 1, pageSize: number = 10) => {
+    setIsLoadingReceipts(true); setGeneralError(null);
+    try {
+      const response = await api.getReceipts({page, pageSize} as any);
+      setReceipts(response.data || response);
+      // setReceiptPagination(response.pagination || null);
+    }
+    catch (err: any) { setGeneralError(err); toast({ title: "Error", description: "Failed to fetch receipts.", variant: "destructive" });}
+    finally { setIsLoadingReceipts(false); }
   }, [toast]);
 
   useEffect(() => {
     fetchClientsForDropdown();
+    // Initial fetch for the active tab
     if (activeTab === 'invoices') fetchInvoices();
     else if (activeTab === 'feenotes') fetchFeeNotes();
     else if (activeTab === 'receipts') fetchReceipts();
-  }, [activeTab, fetchInvoices, fetchFeeNotes, fetchReceipts, fetchClientsForDropdown]);
+  }, [activeTab, fetchClientsForDropdown]); // Removed individual fetch functions from deps to avoid loop with initial call
+
+  // Re-fetch when tab changes
+  useEffect(() => {
+    if (activeTab === 'invoices') fetchInvoices();
+    else if (activeTab === 'feenotes') fetchFeeNotes();
+    else if (activeTab === 'receipts') fetchReceipts();
+  }, [activeTab]);
 
 
   // --- Form Submit Handlers ---
@@ -140,19 +168,59 @@ const FinancialsPage = () => {
       setIsInvoiceFormOpen(false); setEditingInvoice(null); invoiceForm.reset(); fetchInvoices();
     } catch (e) { toast({ title: "Error", description: "Failed to save invoice.", variant: "destructive" }); }
   };
-  // TODO: handleFeeNoteFormSubmit, handleReceiptFormSubmit
+
+  const handleFeeNoteFormSubmit = async (data: FeeNoteFormData) => {
+    try {
+      if (editingFeeNote) {
+        await api.updateFeeNote(editingFeeNote.id, data); // Assuming api.updateFeeNote exists
+        toast({ title: "Success", description: "Fee Note updated." });
+      } else {
+        await api.createFeeNote(data);
+        toast({ title: "Success", description: "Fee Note created." });
+      }
+      setIsFeeNoteFormOpen(false); setEditingFeeNote(null); feeNoteForm.reset(); fetchFeeNotes();
+    } catch (e) { toast({ title: "Error", description: "Failed to save Fee Note.", variant: "destructive" }); }
+  };
+
+  const handleReceiptFormSubmit = async (data: ReceiptFormData) => {
+    try {
+      if (editingReceipt) {
+        await api.updateReceipt(editingReceipt.id, data); // Assuming api.updateReceipt exists
+        toast({ title: "Success", description: "Receipt updated." });
+      } else {
+        await api.createReceipt(data);
+        toast({ title: "Success", description: "Receipt created." });
+      }
+      setIsReceiptFormOpen(false); setEditingReceipt(null); receiptForm.reset(); fetchReceipts();
+      // Potentially re-fetch invoices if a receipt was linked to an invoice to update its status
+      if (data.relatedInvoiceId) fetchInvoices();
+    } catch (e) { toast({ title: "Error", description: "Failed to save Receipt.", variant: "destructive" }); }
+  };
 
   // --- Delete Handler ---
   const confirmDelete = async () => {
     if (!documentToDelete) return;
+    setIsDeleting(true);
     try {
-        if(documentToDelete.type === 'invoice') await api.deleteInvoice(documentToDelete.id);
-        // TODO: Add delete for feenote and receipt
-        toast({ title: "Success", description: `${documentToDelete.type.charAt(0).toUpperCase() + documentToDelete.type.slice(1)} deleted.` });
-        if(documentToDelete.type === 'invoice') fetchInvoices();
-        // TODO: Fetch others
-    } catch (e) { toast({ title: "Error", description: `Failed to delete ${documentToDelete.type}.`, variant: "destructive" }); }
-    setDocumentToDelete(null);
+        if(documentToDelete.type === 'invoice') {
+            await api.deleteInvoice(documentToDelete.id);
+            fetchInvoices();
+        } else if (documentToDelete.type === 'feenote') {
+            await api.deleteFeeNote(documentToDelete.id);
+            fetchFeeNotes();
+        } else if (documentToDelete.type === 'receipt') {
+            await api.deleteReceipt(documentToDelete.id); // Assuming api.deleteReceipt exists
+            fetchReceipts();
+        }
+        toast({ title: "Success", description: `${documentToDelete.type.charAt(0).toUpperCase() + documentToDelete.type.slice(1)} '${documentToDelete.name || documentToDelete.id}' deleted.` });
+    } catch (e) {
+        // Error toast handled by apiService interceptor
+        console.error(`Failed to delete ${documentToDelete.type}`, e);
+    }
+    finally {
+        setIsDeleting(false);
+        setDocumentToDelete(null);
+    }
   };
 
   const handlePrintDocument = (doc: Invoice | FeeNote | Receipt | null) => {
@@ -228,9 +296,70 @@ const FinancialsPage = () => {
             </CardContent>
           </Card>
         </TabsContent>
-        {/* TODO: FeeNotes and Receipts Tabs - similar structure */}
-         <TabsContent value="feenotes"><Card><CardHeader><CardTitle>Fee Notes</CardTitle><CardDescription>Coming Soon</CardDescription></CardHeader><CardContent><p>Fee Note Management will be here.</p></CardContent></Card></TabsContent>
-         <TabsContent value="receipts"><Card><CardHeader><CardTitle>Receipts</CardTitle><CardDescription>Coming Soon</CardDescription></CardHeader><CardContent><p>Receipt Management will be here.</p></CardContent></Card></TabsContent>
+
+        {/* FeeNotes Tab */}
+        <TabsContent value="feenotes">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div><CardTitle>Fee Notes</CardTitle><CardDescription>Manage all your fee notes.</CardDescription></div>
+              <Button onClick={() => { setEditingFeeNote(null); feeNoteForm.reset({ currency: 'USD', status: 'Draft', lineItems: [{description: '', quantity: 1, unitPrice: 0}] }); setIsFeeNoteFormOpen(true); }}><PlusCircle className="mr-2 h-4 w-4" />Create Fee Note</Button>
+            </CardHeader>
+            <CardContent>
+              {isLoadingFeeNotes && <Skeleton className="h-20 w-full"/>}
+              {generalError && isLoadingFeeNotes !== true && <p className="text-red-500">Error loading fee notes.</p>}
+              {!isLoadingFeeNotes && feeNotes.length === 0 && <p>No fee notes found.</p>}
+              {!isLoadingFeeNotes && feeNotes.length > 0 && (
+                <Table>
+                  <TableHeader><TableRow><TableHead>Number</TableHead><TableHead>Client</TableHead><TableHead>Issue Date</TableHead><TableHead>Total</TableHead><TableHead>Status</TableHead><TableHead>Actions</TableHead></TableRow></TableHeader>
+                  <TableBody>
+                    {feeNotes.map(fn => (
+                      <TableRow key={fn.id}>
+                        <TableCell>{fn.documentNumber}</TableCell><TableCell>{fn.clientName}</TableCell><TableCell>{new Date(fn.issueDate).toLocaleDateString()}</TableCell><TableCell>{fn.currency} {fn.totalAmount.toFixed(2)}</TableCell><TableCell><Badge variant={fn.status === 'Paid' ? 'success' : fn.status === 'Overdue' ? 'destructive' : 'outline'}>{fn.status}</Badge></TableCell>
+                        <TableCell>
+                            <Button variant="ghost" size="icon" onClick={() => setDocumentToView(fn)}><Eye className="h-4 w-4"/></Button>
+                            <Button variant="ghost" size="icon" onClick={() => { setEditingFeeNote(fn); feeNoteForm.reset(fn as any); setIsFeeNoteFormOpen(true);}}><Edit className="h-4 w-4"/></Button>
+                            <Button variant="ghost" size="icon" onClick={() => setDocumentToDelete({type: 'feenote', id: fn.id, name: fn.documentNumber})}><Trash2 className="h-4 w-4 text-red-500"/></Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Receipts Tab */}
+        <TabsContent value="receipts">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div><CardTitle>Receipts</CardTitle><CardDescription>Manage all your payment receipts.</CardDescription></div>
+              <Button onClick={() => { setEditingReceipt(null); receiptForm.reset({ currency: 'USD', status: 'Paid', paymentMethod: 'Bank Transfer', lineItems: [{description: 'Payment Received', quantity: 1, unitPrice: 0}] }); setIsReceiptFormOpen(true); }}><PlusCircle className="mr-2 h-4 w-4" />Create Receipt</Button>
+            </CardHeader>
+            <CardContent>
+              {isLoadingReceipts && <Skeleton className="h-20 w-full"/>}
+              {generalError && !isLoadingReceipts && <p className="text-red-500">Error loading receipts.</p>}
+              {!isLoadingReceipts && receipts.length === 0 && <p>No receipts found.</p>}
+              {!isLoadingReceipts && receipts.length > 0 && (
+                <Table>
+                  <TableHeader><TableRow><TableHead>Number</TableHead><TableHead>Client</TableHead><TableHead>Payment Date</TableHead><TableHead>Amount</TableHead><TableHead>Method</TableHead><TableHead>Actions</TableHead></TableRow></TableHeader>
+                  <TableBody>
+                    {receipts.map(rec => (
+                      <TableRow key={rec.id}>
+                        <TableCell>{rec.documentNumber}</TableCell><TableCell>{rec.clientName}</TableCell><TableCell>{new Date(rec.paymentDate).toLocaleDateString()}</TableCell><TableCell>{rec.currency} {rec.totalAmount.toFixed(2)}</TableCell><TableCell>{rec.paymentMethod}</TableCell>
+                        <TableCell>
+                            <Button variant="ghost" size="icon" onClick={() => setDocumentToView(rec)}><Eye className="h-4 w-4"/></Button>
+                            <Button variant="ghost" size="icon" onClick={() => { setEditingReceipt(rec); receiptForm.reset(rec as any); setIsReceiptFormOpen(true);}}><Edit className="h-4 w-4"/></Button>
+                            <Button variant="ghost" size="icon" onClick={() => setDocumentToDelete({type: 'receipt', id: rec.id, name: rec.documentNumber})}><Trash2 className="h-4 w-4 text-red-500"/></Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
 
       {/* Invoice Form Dialog */}
@@ -263,6 +392,121 @@ const FinancialsPage = () => {
         </DialogContent>
       </Dialog>
 
+      {/* FeeNote Form Dialog */}
+      <Dialog open={isFeeNoteFormOpen} onOpenChange={(isOpen) => { if(!isOpen) setEditingFeeNote(null); setIsFeeNoteFormOpen(isOpen); }}>
+        <DialogContent className="sm:max-w-3xl">
+          <DialogHeader><DialogTitle>{editingFeeNote ? 'Edit Fee Note' : 'Create New Fee Note'}</DialogTitle></DialogHeader>
+          <form onSubmit={feeNoteForm.handleSubmit(handleFeeNoteFormSubmit)} className="space-y-4 py-4 max-h-[80vh] overflow-y-auto pr-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div><Label htmlFor="fnClientId">Client</Label><Controller name="clientId" control={feeNoteForm.control} render={({ field }) => (<Select onValueChange={field.onChange} value={field.value}><SelectTrigger><SelectValue placeholder="Select client"/></SelectTrigger><SelectContent>{clients.map(c=><SelectItem key={c.id} value={c.id}>{c.name} ({c.id})</SelectItem>)}</SelectContent></Select>)} />{feeNoteForm.formState.errors.clientId && <p className="text-xs text-red-500">{feeNoteForm.formState.errors.clientId.message}</p>}</div>
+                <div><Label htmlFor="fnStatus">Status</Label><Controller name="status" control={feeNoteForm.control} render={({ field }) => (<Select onValueChange={field.onChange} value={field.value}><SelectTrigger><SelectValue placeholder="Select status"/></SelectTrigger><SelectContent>{documentStatusOptions.map(s=><SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent></Select>)} />{feeNoteForm.formState.errors.status && <p className="text-xs text-red-500">{feeNoteForm.formState.errors.status.message}</p>}</div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div><Label htmlFor="fnIssueDate">Issue Date</Label><Input id="fnIssueDate" type="date" {...feeNoteForm.register('issueDate')} />{feeNoteForm.formState.errors.issueDate && <p className="text-xs text-red-500">{feeNoteForm.formState.errors.issueDate.message}</p>}</div>
+                <div><Label htmlFor="fnDueDate">Due Date (Optional)</Label><Input id="fnDueDate" type="date" {...feeNoteForm.register('dueDate')} /></div>
+                <div><Label htmlFor="fnCurrency">Currency</Label><Input id="fnCurrency" {...feeNoteForm.register('currency')} placeholder="USD" />{feeNoteForm.formState.errors.currency && <p className="text-xs text-red-500">{feeNoteForm.formState.errors.currency.message}</p>}</div>
+            </div>
+            <div>
+                <Label htmlFor="fnRelatedInvoiceId">Related Invoice (Optional)</Label>
+                <Controller
+                    name="relatedInvoiceId"
+                    control={feeNoteForm.control}
+                    render={({ field }) => (
+                        <Select onValueChange={field.onChange} value={field.value || ''}>
+                            <SelectTrigger id="fnRelatedInvoiceId">
+                                <SelectValue placeholder="Select related invoice..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="">None</SelectItem>
+                                {invoices
+                                    .filter(inv => inv.clientId === feeNoteForm.watch('clientId'))
+                                    .map(inv => <SelectItem key={inv.id} value={inv.id}>{inv.documentNumber} ({inv.clientName}) - {inv.currency} {inv.totalAmount.toFixed(2)}</SelectItem>)
+                                }
+                            </SelectContent>
+                        </Select>
+                    )}
+                />
+            </div>
+
+            <Separator />
+            <Label className="text-lg font-medium">Line Items</Label>
+            {renderLineItemsFields(feeNoteLineItems, appendFeeNoteLineItem, removeFeeNoteLineItem, feeNoteForm.control, feeNoteForm.register, feeNoteForm.formState.errors)}
+            <Separator />
+
+            <div><Label htmlFor="fnTaxRate">Tax Rate (Optional, e.g., 0.07 for 7%)</Label><Input id="fnTaxRate" type="number" step="0.001" placeholder="0.00" {...feeNoteForm.register('taxRate')} /></div>
+            <div><Label htmlFor="fnNotes">Notes (Optional)</Label><Textarea id="fnNotes" {...feeNoteForm.register('notes')} /></div>
+            <DialogFooter><DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose><Button type="submit" disabled={feeNoteForm.formState.isSubmitting}>{feeNoteForm.formState.isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Save Fee Note</Button></DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Receipt Form Dialog */}
+      <Dialog open={isReceiptFormOpen} onOpenChange={(isOpen) => { if(!isOpen) setEditingReceipt(null); setIsReceiptFormOpen(isOpen); }}>
+        <DialogContent className="sm:max-w-3xl">
+          <DialogHeader><DialogTitle>{editingReceipt ? 'Edit Receipt' : 'Create New Receipt'}</DialogTitle></DialogHeader>
+          <form onSubmit={receiptForm.handleSubmit(handleReceiptFormSubmit)} className="space-y-4 py-4 max-h-[80vh] overflow-y-auto pr-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div><Label htmlFor="recClientId">Client</Label><Controller name="clientId" control={receiptForm.control} render={({ field }) => (<Select onValueChange={field.onChange} value={field.value}><SelectTrigger><SelectValue placeholder="Select client"/></SelectTrigger><SelectContent>{clients.map(c=><SelectItem key={c.id} value={c.id}>{c.name} ({c.id})</SelectItem>)}</SelectContent></Select>)} />{receiptForm.formState.errors.clientId && <p className="text-xs text-red-500">{receiptForm.formState.errors.clientId.message}</p>}</div>
+                <div><Label htmlFor="recPaymentDate">Payment Date</Label><Input id="recPaymentDate" type="date" {...receiptForm.register('paymentDate')} />{receiptForm.formState.errors.paymentDate && <p className="text-xs text-red-500">{receiptForm.formState.errors.paymentDate.message}</p>}</div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div><Label htmlFor="recPaymentMethod">Payment Method</Label><Input id="recPaymentMethod" {...receiptForm.register('paymentMethod')} placeholder="e.g., Bank Transfer, Credit Card" />{receiptForm.formState.errors.paymentMethod && <p className="text-xs text-red-500">{receiptForm.formState.errors.paymentMethod.message}</p>}</div>
+                <div><Label htmlFor="recCurrency">Currency</Label><Input id="recCurrency" {...receiptForm.register('currency')} placeholder="USD" />{receiptForm.formState.errors.currency && <p className="text-xs text-red-500">{receiptForm.formState.errors.currency.message}</p>}</div>
+            </div>
+            <div><Label htmlFor="recIssueDate">Issue Date (Receipt Date)</Label><Input id="recIssueDate" type="date" {...receiptForm.register('issueDate')} />{receiptForm.formState.errors.issueDate && <p className="text-xs text-red-500">{receiptForm.formState.errors.issueDate.message}</p>}</div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <Label htmlFor="recRelatedInvoiceId">Related Invoice (Optional)</Label>
+                    <Controller
+                        name="relatedInvoiceId"
+                        control={receiptForm.control}
+                        render={({ field }) => (
+                            <Select onValueChange={field.onChange} value={field.value || ''}>
+                                <SelectTrigger id="recRelatedInvoiceId"><SelectValue placeholder="Select related invoice..." /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="">None</SelectItem>
+                                    {invoices
+                                        .filter(inv => inv.clientId === receiptForm.watch('clientId'))
+                                        .map(inv => <SelectItem key={inv.id} value={inv.id}>{inv.documentNumber} ({inv.clientName})</SelectItem>)
+                                    }
+                                </SelectContent>
+                            </Select>
+                        )}
+                    />
+                </div>
+                <div>
+                    <Label htmlFor="recRelatedFeeNoteId">Related Fee Note (Optional)</Label>
+                     <Controller
+                        name="relatedFeeNoteId"
+                        control={receiptForm.control}
+                        render={({ field }) => (
+                            <Select onValueChange={field.onChange} value={field.value || ''}>
+                                <SelectTrigger id="recRelatedFeeNoteId"><SelectValue placeholder="Select related fee note..." /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="">None</SelectItem>
+                                    {feeNotes
+                                        .filter(fn => fn.clientId === receiptForm.watch('clientId'))
+                                        .map(fn => <SelectItem key={fn.id} value={fn.id}>{fn.documentNumber} ({fn.clientName})</SelectItem>)
+                                    }
+                                </SelectContent>
+                            </Select>
+                        )}
+                    />
+                </div>
+            </div>
+
+            <Separator />
+            <Label className="text-lg font-medium">Payment Details / Line Items</Label>
+            {renderLineItemsFields(receiptLineItems, appendReceiptLineItem, removeReceiptLineItem, receiptForm.control, receiptForm.register, receiptForm.formState.errors)}
+            <Separator />
+
+            <div><Label htmlFor="recNotes">Notes (Optional)</Label><Textarea id="recNotes" {...receiptForm.register('notes')} /></div>
+            <DialogFooter><DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose><Button type="submit" disabled={receiptForm.formState.isSubmitting}>{receiptForm.formState.isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Save Receipt</Button></DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
       {/* View Document Dialog (Generic for Invoice/FeeNote/Receipt) */}
       <Dialog open={!!documentToView} onOpenChange={(isOpen) => { if(!isOpen) setDocumentToView(null);}}>
         <DialogContent className="sm:max-w-2xl">
@@ -271,10 +515,14 @@ const FinancialsPage = () => {
                 <DialogDescription>Client: {documentToView?.clientName} ({documentToView?.clientId}) | Status: <Badge variant={documentToView?.status === 'Paid' ? 'success' : documentToView?.status === 'Overdue' ? 'destructive' : 'outline'}>{documentToView?.status}</Badge></DialogDescription>
             </DialogHeader>
             <div className="py-4 max-h-[70vh] overflow-y-auto pr-2 space-y-3">
+                <p><strong>Type:</strong> {
+                    documentToView && 'paymentDate' in documentToView ? 'Receipt' : documentToView && 'relatedInvoiceId' in documentToView && !( 'paymentDate' in documentToView) ? 'Fee Note' : 'Invoice'
+                }</p>
                 <p><strong>Issue Date:</strong> {documentToView && new Date(documentToView.issueDate).toLocaleDateString()}</p>
                 {documentToView?.dueDate && <p><strong>Due Date:</strong> {new Date(documentToView.dueDate).toLocaleDateString()}</p>}
                 {(documentToView as Receipt)?.paymentDate && <p><strong>Payment Date:</strong> {new Date((documentToView as Receipt).paymentDate).toLocaleDateString()}</p>}
                 {(documentToView as Receipt)?.paymentMethod && <p><strong>Payment Method:</strong> {(documentToView as Receipt).paymentMethod}</p>}
+                {(documentToView as Invoice)?.paymentTerms && <p><strong>Payment Terms:</strong> {(documentToView as Invoice).paymentTerms}</p>}
 
                 <Label className="font-semibold">Line Items:</Label>
                 <Table size="sm"><TableHeader><TableRow><TableHead>Description</TableHead><TableHead className="text-right">Qty</TableHead><TableHead className="text-right">Unit Price</TableHead><TableHead className="text-right">Total</TableHead></TableRow></TableHeader>
@@ -290,6 +538,23 @@ const FinancialsPage = () => {
                     <p className="text-lg font-bold"><strong>Total:</strong> {documentToView?.currency} {documentToView?.totalAmount.toFixed(2)}</p>
                 </div>
                 {documentToView?.notes && <><Label className="font-semibold">Notes:</Label><p className="text-sm p-2 border rounded-md bg-slate-50 whitespace-pre-wrap">{documentToView.notes}</p></>}
+
+                {/* Displaying Linked Document IDs */}
+                {(documentToView as Invoice)?.linkedFeeNoteIds && (documentToView as Invoice).linkedFeeNoteIds!.length > 0 && (
+                    <div><Label className="font-semibold">Linked Fee Notes:</Label><p className="text-sm">{(documentToView as Invoice).linkedFeeNoteIds!.join(', ')}</p></div>
+                )}
+                {(documentToView as Invoice)?.linkedReceiptIds && (documentToView as Invoice).linkedReceiptIds!.length > 0 && (
+                    <div><Label className="font-semibold">Linked Receipts:</Label><p className="text-sm">{(documentToView as Invoice).linkedReceiptIds!.join(', ')}</p></div>
+                )}
+                {(documentToView as FeeNote)?.relatedInvoiceId && (
+                    <div><Label className="font-semibold">Related Invoice:</Label><p className="text-sm">{(documentToView as FeeNote).relatedInvoiceId}</p></div>
+                )}
+                {(documentToView as Receipt)?.relatedInvoiceId && (
+                    <div><Label className="font-semibold">Related Invoice:</Label><p className="text-sm">{(documentToView as Receipt).relatedInvoiceId}</p></div>
+                )}
+                 {(documentToView as Receipt)?.relatedFeeNoteId && (
+                    <div><Label className="font-semibold">Related Fee Note:</Label><p className="text-sm">{(documentToView as Receipt).relatedFeeNoteId}</p></div>
+                )}
             </div>
             <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => handlePrintDocument(documentToView)}><Printer className="mr-2 h-4 w-4"/>Print (Simulated)</Button>

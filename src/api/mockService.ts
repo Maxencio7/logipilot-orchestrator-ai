@@ -459,6 +459,32 @@ export const createFeeNote = (data: FeeNoteFormData): Promise<FeeNote> => {
         resolve(newFeeNote);
     }, 500));
 };
+export const updateFeeNote = (id: string, data: Partial<FeeNoteFormData>): Promise<FeeNote | undefined> => {
+    return new Promise(resolve => setTimeout(() => {
+        const index = mockFeeNotesDB.findIndex(fn => fn.id === id);
+        if (index !== -1) {
+            const existingFeeNote = mockFeeNotesDB[index];
+            const updatedData = { ...existingFeeNote, ...data };
+             if (data.lineItems || data.taxRate !== undefined) {
+                 const { subtotal, taxAmount, totalAmount, itemsWithTotals } = calculateDocumentTotals(data.lineItems || existingFeeNote.lineItems, data.taxRate !== undefined ? data.taxRate : existingFeeNote.taxRate);
+                 updatedData.lineItems = itemsWithTotals;
+                 updatedData.subtotal = subtotal;
+                 updatedData.taxAmount = taxAmount;
+                 updatedData.totalAmount = totalAmount;
+            }
+            mockFeeNotesDB[index] = { ...updatedData, updatedAt: new Date().toISOString() } as FeeNote;
+            resolve(mockFeeNotesDB[index]);
+        } else resolve(undefined);
+    }, 500));
+};
+export const deleteFeeNote = (id: string): Promise<boolean> => {
+    return new Promise(resolve => setTimeout(() => {
+        const initialLength = mockFeeNotesDB.length;
+        mockFeeNotesDB = mockFeeNotesDB.filter(fn => fn.id !== id);
+        resolve(mockFeeNotesDB.length < initialLength);
+    }, 300));
+};
+
 
 // Receipt CRUD
 export const getReceipts = (filters?: { clientId?: string }): Promise<Receipt[]> => {
@@ -492,6 +518,31 @@ export const createReceipt = (data: ReceiptFormData): Promise<Receipt> => {
         }
         resolve(newReceipt);
     }, 500));
+};
+export const updateReceipt = (id: string, data: Partial<ReceiptFormData>): Promise<Receipt | undefined> => {
+    return new Promise(resolve => setTimeout(() => {
+        const index = mockReceiptsDB.findIndex(r => r.id === id);
+        if (index !== -1) {
+            const existingReceipt = mockReceiptsDB[index];
+            const updatedData = { ...existingReceipt, ...data };
+             if (data.lineItems || data.taxRate !== undefined) { // Receipts might not have tax, but keep for consistency
+                 const { subtotal, taxAmount, totalAmount, itemsWithTotals } = calculateDocumentTotals(data.lineItems || existingReceipt.lineItems, data.taxRate !== undefined ? data.taxRate : existingReceipt.taxRate);
+                 updatedData.lineItems = itemsWithTotals;
+                 updatedData.subtotal = subtotal;
+                 updatedData.taxAmount = taxAmount;
+                 updatedData.totalAmount = totalAmount;
+            }
+            mockReceiptsDB[index] = { ...updatedData, updatedAt: new Date().toISOString() } as Receipt;
+            resolve(mockReceiptsDB[index]);
+        } else resolve(undefined);
+    }, 500));
+};
+export const deleteReceipt = (id: string): Promise<boolean> => {
+    return new Promise(resolve => setTimeout(() => {
+        const initialLength = mockReceiptsDB.length;
+        mockReceiptsDB = mockReceiptsDB.filter(r => r.id !== id);
+        resolve(mockReceiptsDB.length < initialLength);
+    }, 300));
 };
 
 // --- Fleet Mock API ---
