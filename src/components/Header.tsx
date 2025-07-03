@@ -6,9 +6,23 @@ import React, { useEffect, useState, useRef } from 'react'; // Added useRef
 import { Bell, Search, User, Settings, Menu } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import React, { useEffect, useState, useRef } from 'react';
+import { Bell, Search, User, Settings, Menu } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { useGlobalSearch } from '@/hooks/useGlobalSearch';
 import { useDebounce } from '@/hooks/useDebounce';
-import SearchResultsDropdown from './SearchResultsDropdown'; // Import the new component
+import React, { useEffect, useState, useRef } from 'react';
+import { Bell, Search, User, Settings, Menu } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { useGlobalSearch } from '@/hooks/useGlobalSearch';
+import { useDebounce } from '@/hooks/useDebounce';
+import SearchResultsDropdown from './SearchResultsDropdown';
+import { useNotifications } from '@/hooks/useNotifications';
+import NotificationDropdown from './NotificationDropdown';
+import { useUserProfile } from '@/hooks/useUserProfile'; // Added
+import ProfileDropdown from './ProfileDropdown'; // Added
 
 interface HeaderProps {
   toggleMobileSidebar: () => void;
@@ -28,7 +42,41 @@ const Header = ({ toggleMobileSidebar }: HeaderProps) => {
 
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
   const [isDropdownVisible, setIsDropdownVisible] = useState(false);
-  const searchContainerRef = useRef<HTMLDivElement>(null); // Ref for the search container
+  const searchContainerRef = useRef<HTMLDivElement>(null);
+
+  // Notification state and handlers
+  const [isNotificationDropdownVisible, setIsNotificationDropdownVisible] = useState(false);
+  const notificationContainerRef = useRef<HTMLDivElement>(null);
+  const {
+    notifications,
+    unreadCount,
+    isLoading: isLoadingNotifications,
+    error: errorNotifications,
+    fetchUserNotifications,
+    markAsRead: markNotificationAsRead,
+    markAllAsRead: markAllNotificationsAsRead,
+  } = useNotifications();
+
+  // User Profile state and handlers
+  const [isProfileDropdownVisible, setIsProfileDropdownVisible] = useState(false);
+  const profileContainerRef = useRef<HTMLDivElement>(null);
+  const {
+    userProfile,
+    isLoading: isLoadingUserProfile,
+    error: errorUserProfile,
+    fetchUserProfile,
+  } = useUserProfile();
+
+  // TODO: Determine userRole and userId from auth context in a real app
+  const currentUserRole = 'Worker';
+  const currentUserId = 'user001'; // Hardcoded for Alice Wonderland (Worker)
+
+  useEffect(() => {
+    fetchUserNotifications(currentUserRole);
+    if (currentUserId) {
+      fetchUserProfile(currentUserId);
+    }
+  }, [fetchUserNotifications, currentUserRole, fetchUserProfile, currentUserId]);
 
   const handleInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const newQuery = event.target.value;
@@ -69,10 +117,18 @@ const Header = ({ toggleMobileSidebar }: HeaderProps) => {
       if (searchContainerRef.current && !searchContainerRef.current.contains(event.target as Node)) {
         setIsDropdownVisible(false);
       }
+      if (notificationContainerRef.current && !notificationContainerRef.current.contains(event.target as Node)) {
+        setIsNotificationDropdownVisible(false);
+      }
+      if (profileContainerRef.current && !profileContainerRef.current.contains(event.target as Node)) {
+        setIsProfileDropdownVisible(false);
+      }
     };
     const handleEscapeKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         setIsDropdownVisible(false);
+        setIsNotificationDropdownVisible(false);
+        setIsProfileDropdownVisible(false);
       }
     };
 
@@ -84,10 +140,36 @@ const Header = ({ toggleMobileSidebar }: HeaderProps) => {
     };
   }, []);
 
-  const closeDropdown = () => {
+  const closeSearchDropdown = () => {
     setIsDropdownVisible(false);
-    // Optional: clearSearch(); or setSearchQuery('');
-    // Depending on desired behavior after clicking a result
+  };
+
+  const toggleNotificationDropdown = () => {
+    setIsNotificationDropdownVisible(prev => !prev);
+    setIsProfileDropdownVisible(false); // Close other dropdown
+  };
+
+  const closeNotificationDropdown = () => {
+    setIsNotificationDropdownVisible(false);
+  };
+
+  const handleMarkAllRead = () => {
+    markAllNotificationsAsRead(currentUserRole);
+  };
+
+  const toggleProfileDropdown = () => {
+    setIsProfileDropdownVisible(prev => !prev);
+    setIsNotificationDropdownVisible(false); // Close other dropdown
+  };
+
+  const closeProfileDropdown = () => {
+    setIsProfileDropdownVisible(false);
+  };
+
+  const handleLogout = () => {
+    // Placeholder for actual logout logic
+    console.log('User logged out');
+    closeProfileDropdown();
   };
 
   return (
@@ -121,7 +203,6 @@ const Header = ({ toggleMobileSidebar }: HeaderProps) => {
             value={searchQuery}
             onChange={handleInputChange}
             onFocus={handleSearchFocus}
-            // onBlur is handled by click outside now
           />
           {isDropdownVisible && (
             <SearchResultsDropdown
@@ -136,23 +217,58 @@ const Header = ({ toggleMobileSidebar }: HeaderProps) => {
       </div>
       
       <div className="flex items-center space-x-2 md:space-x-4">
-        {/* Search Icon for very small screens - an alternative to full search bar */}
+        {/* Search Icon for very small screens */}
         <Button variant="ghost" size="icon" className="sm:hidden" aria-label="Search">
           <Search className="w-5 h-5" />
         </Button>
-        <Button variant="ghost" size="icon" className="relative" aria-label="Notifications">
-          <Bell className="w-5 h-5" />
-          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-4 h-4 md:w-5 md:h-5 flex items-center justify-center text-[10px] md:text-xs">
-            3
-          </span>
-          <span className="sr-only">3 new notifications</span>
-        </Button>
+
+        {/* Notifications Button and Dropdown */}
+        <div className="relative" ref={notificationContainerRef}>
+          <Button variant="ghost" size="icon" className="relative" aria-label="Notifications" onClick={toggleNotificationDropdown}>
+            <Bell className="w-5 h-5" />
+            {unreadCount > 0 && (
+              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] rounded-full w-4 h-4 md:w-5 md:h-5 flex items-center justify-center">
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </span>
+            )}
+          </Button>
+          {isNotificationDropdownVisible && (
+            <NotificationDropdown
+              notifications={notifications}
+              unreadCount={unreadCount}
+              isLoading={isLoadingNotifications}
+              error={errorNotifications}
+              onMarkAsRead={markNotificationAsRead}
+              onMarkAllAsRead={handleMarkAllRead}
+              onClose={closeNotificationDropdown}
+            />
+          )}
+        </div>
+
         <Button variant="ghost" size="icon" aria-label="Settings">
           <Settings className="w-5 h-5" />
         </Button>
-        <Button variant="ghost" size="icon" aria-label="User profile">
-          <User className="w-5 h-5" />
-        </Button>
+
+        {/* User Profile Button and Dropdown */}
+        <div className="relative" ref={profileContainerRef}>
+          <Button variant="ghost" size="icon" aria-label="User profile" onClick={toggleProfileDropdown}>
+            {/* Optionally display user avatar here if available and small enough, otherwise just icon */}
+            {userProfile && userProfile.profilePictureUrl ? (
+              <img src={userProfile.profilePictureUrl} alt="User profile" className="w-6 h-6 rounded-full" />
+            ) : (
+              <User className="w-5 h-5" />
+            )}
+          </Button>
+          {isProfileDropdownVisible && (
+            <ProfileDropdown
+              userProfile={userProfile}
+              isLoading={isLoadingUserProfile}
+              error={errorUserProfile}
+              onClose={closeProfileDropdown}
+              onLogout={handleLogout}
+            />
+          )}
+        </div>
       </div>
     </header>
   );

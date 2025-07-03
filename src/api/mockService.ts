@@ -4,7 +4,9 @@ import {
     SummaryData, Metric, ShipmentPreview, AlertPreview,
     Shipment, ShipmentFormData, ShipmentStatus,
     Client, ClientFormData, ClientStatus, ClientActivitySummary,
-    SearchResultItem // Imported from types/index.ts
+    SearchResultItem,
+    NotificationItem, NotificationType,
+    UserProfile, UserRole, UserStatus, TaskPreview, TaskStatus // Added UserProfile and Task types
 } from '@/types';
 
 // Local definition of SearchResultItem is no longer needed.
@@ -370,4 +372,227 @@ export const searchGlobal = async (query: string): Promise<SearchResultItem[]> =
     console.error('Mock API: Error during global search:', error);
     return Promise.reject(error);
   }
+};
+
+// --- Notifications Mock API ---
+let mockNotificationsDB: NotificationItem[] = [
+  {
+    id: 'notif001',
+    type: 'NEW_WORKER_INPUT',
+    message: 'Worker John Doe submitted new Fuel Log for TRK001.',
+    description: 'Fuel amount: 50L, Odometer: 12345km.',
+    timestamp: new Date(Date.now() - 10 * 60 * 1000).toISOString(), // 10 minutes ago
+    isRead: false,
+    recipientRole: 'Admin',
+    link: '/inputs/fuel-logs/log123', // Example link
+    sender: { id: 'worker007', name: 'John Doe', type: 'User' }
+  },
+  {
+    id: 'notif002',
+    type: 'INPUT_APPROVED',
+    message: 'Your timesheet for 2024-07-28 has been approved.',
+    timestamp: new Date(Date.now() - 30 * 60 * 1000).toISOString(), // 30 minutes ago
+    isRead: false,
+    recipientRole: 'Worker',
+    link: '/timesheets/ts456',
+    sender: { name: 'Admin Team', type: 'User' }
+  },
+  {
+    id: 'notif003',
+    type: 'INPUT_UNDER_REVIEW',
+    message: 'Your maintenance request for TRK002 is under review.',
+    timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), // 2 hours ago
+    isRead: true,
+    recipientRole: 'Worker',
+    link: '/maintenance/req789',
+    sender: { name: 'Admin Team', type: 'User' }
+  },
+  {
+    id: 'notif004',
+    type: 'MAINTENANCE_ALERT',
+    message: 'Vehicle TRK003 reported an engine fault. Immediate attention required.',
+    timestamp: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(), // 5 hours ago
+    isRead: false,
+    recipientRole: 'Admin',
+    link: '/fleet/TRK003/alerts',
+    sender: { name: 'System', type: 'System' }
+  },
+  {
+    id: 'notif005',
+    type: 'TASK_ASSIGNED',
+    message: 'New delivery task assigned: Shipment SH001 to New York.',
+    description: 'Deliver by EOD tomorrow. Client: TechCorp Inc.',
+    timestamp: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(), // 1 day ago
+    isRead: true,
+    recipientRole: 'Worker',
+    link: '/tasks/task101',
+    sender: { name: 'System', type: 'System' }
+  },
+  {
+    id: 'notif006',
+    type: 'GENERAL_ANNOUNCEMENT',
+    message: 'Upcoming team meeting on Friday at 10 AM.',
+    timestamp: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(), // 2 days ago
+    isRead: false,
+    recipientRole: 'All', // Test for 'All'
+    sender: { name: 'Management', type: 'User' }
+  },
+  {
+    id: 'notif007',
+    type: 'NEW_WORKER_INPUT',
+    message: 'Jane Smith submitted vacation request for Aug 5-10.',
+    timestamp: new Date(Date.now() - 60 * 60 * 1000).toISOString(), // 1 hour ago
+    isRead: true,
+    recipientRole: 'Admin',
+    link: '/requests/vacation/vac456',
+    sender: { id: 'worker008', name: 'Jane Smith', type: 'User' }
+  },
+];
+
+export const getNotifications = (userRole: 'Admin' | 'Worker'): Promise<NotificationItem[]> => {
+  console.log('Mock API: Fetching notifications for role:', userRole);
+  return new Promise(resolve => {
+    setTimeout(() => {
+      const relevantNotifications = mockNotificationsDB.filter(
+        n => n.recipientRole === userRole || n.recipientRole === 'All'
+      );
+      // Sort by timestamp descending (newest first)
+      resolve(
+        relevantNotifications.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+      );
+    }, 300);
+  });
+};
+
+export const markNotificationAsRead = (notificationId: string): Promise<NotificationItem | undefined> => {
+  console.log('Mock API: Marking notification as read:', notificationId);
+  return new Promise((resolve, reject) => {
+    setTimeout(() => {
+      const notification = mockNotificationsDB.find(n => n.id === notificationId);
+      if (notification) {
+        notification.isRead = true;
+        console.log('Mock API: Notification marked as read:', notification);
+        resolve(notification);
+      } else {
+        console.error('Mock API: Notification not found to mark as read:', notificationId);
+        reject(new Error('Notification not found'));
+      }
+    }, 200);
+  });
+};
+
+export const markAllNotificationsAsRead = (userRole: 'Admin' | 'Worker'): Promise<NotificationItem[]> => {
+  console.log('Mock API: Marking all notifications as read for role:', userRole);
+  return new Promise(resolve => {
+    setTimeout(() => {
+      const updatedNotifications: NotificationItem[] = [];
+      mockNotificationsDB.forEach(n => {
+        if (n.recipientRole === userRole || n.recipientRole === 'All') {
+          if (!n.isRead) {
+            n.isRead = true;
+            updatedNotifications.push(n);
+          }
+        }
+      });
+      console.log(`Mock API: Marked ${updatedNotifications.length} notifications as read.`);
+      // Return all relevant notifications for the user, now updated
+      const relevantNotifications = mockNotificationsDB.filter(
+        n => n.recipientRole === userRole || n.recipientRole === 'All'
+      );
+      resolve(
+        relevantNotifications.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+      );
+    }, 400);
+  });
+};
+
+// --- User Profile Mock API ---
+
+// Mock Tasks DB
+let mockTasksDB: TaskPreview[] = [
+  { taskId: 'task001', taskTitle: 'Deliver package SH001 to New York', status: 'In Progress', dueDate: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString() },
+  { taskId: 'task002', taskTitle: 'Inspect TRK002 for maintenance', status: 'Pending', dueDate: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000).toISOString() },
+  { taskId: 'task003', taskTitle: 'Client follow-up: MegaStore LLC', status: 'Completed' },
+  { taskId: 'task004', taskTitle: 'Submit Q3 Fuel Consumption Report', status: 'Pending', dueDate: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString()},
+];
+
+// Mock User Profiles DB
+let mockUserProfilesDB: UserProfile[] = [
+  {
+    id: 'user001',
+    name: 'Alice Wonderland (Worker)',
+    email: 'alice.worker@example.com',
+    role: 'Worker',
+    status: 'Active',
+    profilePictureUrl: 'https://i.pravatar.cc/150?u=alice',
+    currentTask: mockTasksDB[0], // Alice is working on task001
+    team: 'Alpha Team',
+    lastLogin: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), // 2 hours ago
+    phone: '555-1234'
+  },
+  {
+    id: 'user002',
+    name: 'Bob The Builder (Admin)',
+    email: 'bob.admin@example.com',
+    role: 'Admin',
+    status: 'Active',
+    profilePictureUrl: 'https://i.pravatar.cc/150?u=bob',
+    currentTask: mockTasksDB[3], // Bob is working on task004 (admin task)
+    team: 'Management',
+    lastLogin: new Date(Date.now() - 10 * 60 * 1000).toISOString(), // 10 mins ago
+    phone: '555-5678'
+  },
+  {
+    id: 'user003',
+    name: 'Charlie Brown (Worker)',
+    email: 'charlie.worker@example.com',
+    role: 'Worker',
+    status: 'Inactive',
+    // profilePictureUrl: undefined, // No picture
+    currentTask: undefined, // No current task
+    team: 'Bravo Team',
+    lastLogin: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days ago
+  }
+];
+
+export const getUserProfile = (userId: string): Promise<UserProfile | undefined> => {
+  console.log('Mock API: Fetching user profile for ID:', userId);
+  return new Promise(resolve => {
+    setTimeout(() => {
+      const profile = mockUserProfilesDB.find(p => p.id === userId);
+      // In a real API, currentTask might be a separate fetch or joined.
+      // Here, it's directly on the profile if assigned.
+      console.log('Mock API: Responding with user profile:', profile);
+      resolve(profile);
+    }, 350); // Simulate network delay
+  });
+};
+
+// Example function to simulate task update - might be used by a different part of the app
+export const updateUserTask = (userId: string, taskId: string | undefined, newStatus?: TaskStatus): Promise<UserProfile | undefined> => {
+  console.log(`Mock API: Updating task for user ${userId}, taskId: ${taskId}, newStatus: ${newStatus}`);
+  return new Promise((resolve, reject) => {
+    setTimeout(() => {
+      const profile = mockUserProfilesDB.find(p => p.id === userId);
+      if (profile) {
+        if (taskId === undefined) { // Unassign task
+            profile.currentTask = undefined;
+        } else {
+            const task = mockTasksDB.find(t => t.taskId === taskId);
+            if (task) {
+                if(newStatus) task.status = newStatus; // Update status in the main task DB
+                profile.currentTask = { ...task }; // Assign a copy to the user
+            } else {
+                 console.error('Mock API: Task not found to update for user:', taskId);
+                 // Do not change user's task if new one is not found
+            }
+        }
+        console.log('Mock API: User profile task updated:', profile);
+        resolve(profile);
+      } else {
+        console.error('Mock API: User profile not found for task update:', userId);
+        reject(new Error('User profile not found'));
+      }
+    }, 500);
+  });
 };
