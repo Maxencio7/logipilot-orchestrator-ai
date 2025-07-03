@@ -14,9 +14,9 @@ import {
   ServerCrash // For error icon
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Metric, ShipmentPreview, AlertPreview, SummaryData } from '@/types';
-import { fetchSummaryData } from '@/api/mockService';
-import { Skeleton } from '@/components/ui/skeleton'; // For loading skeletons
+import { Metric, ShipmentPreview, AlertPreview, SummaryData, ApiResponse } from '@/types'; // Added ApiResponse
+import apiService from '@/api/apiService'; // Changed from mockService
+import { Skeleton } from '@/components/ui/skeleton';
 
 // Mapping icon names from data to actual Lucide components
 const iconComponents: { [key: string]: React.ElementType } = {
@@ -42,11 +42,19 @@ const Dashboard = () => {
       setIsLoading(true);
       setError(null);
       try {
-        const data = await fetchSummaryData();
-        setSummaryData(data);
-        setLastUpdated(new Date().toLocaleTimeString());
-      } catch (err) {
-        setError('Failed to fetch dashboard data. Please try again later.');
+        // Assuming the backend provides a similar structure at /dashboard/summary
+        const response = await apiService.get<ApiResponse<SummaryData>>('/dashboard/summary');
+        if (response.data.data) {
+            setSummaryData(response.data.data);
+            setLastUpdated(new Date().toLocaleTimeString());
+        } else {
+            // Handle case where response.data.data is null/undefined but no error was thrown by interceptor
+            setError('Failed to retrieve dashboard summary data.');
+            setSummaryData(null);
+        }
+      } catch (err: any) { // Error should be caught by apiService interceptor, but good to have defense
+        setError(err.message || 'Failed to fetch dashboard data. Please try again later.');
+        setSummaryData(null);
         console.error(err);
       } finally {
         setIsLoading(false);
