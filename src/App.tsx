@@ -1,3 +1,4 @@
+
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -12,6 +13,12 @@ import Dashboard from "@/components/Dashboard"; // Assuming Dashboard component 
 import AIAssistant from "@/components/AIAssistant";
 import ShipmentsPage from "./pages/ShipmentsPage";
 import ClientsPage from "./pages/ClientsPage";
+import ReportsPage from "./pages/ReportsPage";
+import AlertsPage from "./pages/AlertsPage";
+import AnalyticsPage from "./pages/AnalyticsPage";
+import FleetPage from "./pages/FleetPage";
+import TrackingPage from "./pages/TrackingPage";
+import SettingsPage from "./pages/SettingsPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -28,7 +35,13 @@ const App = () => (
             <Route path="dashboard" element={<Dashboard />} />
             <Route path="shipments" element={<ShipmentsPage />} />
             <Route path="clients" element={<ClientsPage />} />
+            <Route path="reports" element={<ReportsPage />} />
+            <Route path="alerts" element={<AlertsPage />} />
+            <Route path="analytics" element={<AnalyticsPage />} />
+            <Route path="fleet" element={<FleetPage />} />
+            <Route path="tracking" element={<TrackingPage />} />
             <Route path="ai-assistant" element={<AIAssistant />} />
+            <Route path="settings" element={<SettingsPage />} />
             {/* Add other main feature routes here as children of MainLayout */}
           </Route>
 
