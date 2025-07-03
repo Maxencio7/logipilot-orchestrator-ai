@@ -165,10 +165,10 @@ const ShipmentsPage = () => {
 
   const getStatusBadge = (status: ShipmentStatus) => {
     switch (status) {
-      case 'Delivered': return <Badge variant="success" className="capitalize">{status}</Badge>;
+      case 'Delivered': return <Badge variant="default" className="capitalize">{status}</Badge>;
       case 'Delayed': return <Badge variant="destructive" className="capitalize">{status}</Badge>;
       case 'Cancelled': return <Badge variant="outline" className="capitalize">{status}</Badge>;
-      case 'Processing': return <Badge variant="info" className="capitalize">{status}</Badge>;
+      case 'Processing': return <Badge variant="secondary" className="capitalize">{status}</Badge>;
       case 'In Transit': return <Badge variant="secondary" className="capitalize">{status}</Badge>;
       case 'Pending':
       default:

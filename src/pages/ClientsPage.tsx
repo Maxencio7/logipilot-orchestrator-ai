@@ -166,9 +166,9 @@ const ClientsPage = () => {
 
   const getStatusBadge = (status: ClientStatus) => {
     switch (status) {
-      case 'Active': return <Badge variant="success" className="capitalize">{status}</Badge>;
+      case 'Active': return <Badge variant="default" className="capitalize">{status}</Badge>;
       case 'Inactive': return <Badge variant="outline" className="capitalize">{status}</Badge>;
-      case 'Prospect': return <Badge variant="info" className="capitalize">{status}</Badge>;
+      case 'Prospect': return <Badge variant="secondary" className="capitalize">{status}</Badge>;
       case 'Onboarding': return <Badge variant="secondary" className="capitalize">{status}</Badge>;
       default: return <Badge variant="default" className="capitalize">{status}</Badge>;
     }
