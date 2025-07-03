@@ -87,6 +87,56 @@ export interface SearchResultItem {
   link: string; // URL to navigate to the item's page
 }
 
+// Notification System Types
+export type NotificationType =
+  | 'NEW_WORKER_INPUT'       // For Admin: A worker submitted something new
+  | 'INPUT_APPROVED'         // For Worker: Admin approved their input
+  | 'INPUT_UNDER_REVIEW'     // For Worker: Admin is reviewing their input
+  | 'TASK_ASSIGNED'          // For Worker: A new task has been assigned
+  | 'GENERAL_ANNOUNCEMENT'   // For All: General system announcement
+  | 'MAINTENANCE_ALERT';     // For Admin: System maintenance notification
+
+export interface NotificationItem {
+  id: string;
+  type: NotificationType;
+  message: string;
+  description?: string; // Optional more detailed description
+  timestamp: string; // ISO date string
+  isRead: boolean;
+  link?: string; // Optional link to navigate to related content (e.g., /tasks/taskId, /inputs/inputId)
+  recipientRole: 'Admin' | 'Worker' | 'All'; // To target notifications
+  sender?: { // Optional: Information about who/what triggered the notification
+    id?: string;
+    name?: string; // e.g., "Admin Team", "Worker John Doe", "System"
+    type?: 'User' | 'System';
+  };
+}
+
+// User Profile and Task Types
+export type UserRole = 'Admin' | 'Worker';
+export type UserStatus = 'Active' | 'Inactive' | 'PendingApproval';
+export type TaskStatus = 'Pending' | 'In Progress' | 'Completed' | 'Blocked';
+
+export interface TaskPreview {
+  taskId: string;
+  taskTitle: string;
+  status: TaskStatus;
+  dueDate?: string; // Optional due date
+}
+
+export interface UserProfile {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string;
+  role: UserRole;
+  status: UserStatus;
+  profilePictureUrl?: string; // URL to the image
+  currentTask?: TaskPreview;
+  team?: string; // Optional team affiliation
+  lastLogin?: string; // ISO date string
+}
+
 
 export interface AlertPreview {
   id: string;
