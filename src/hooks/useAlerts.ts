@@ -1,12 +1,21 @@
 // src/hooks/useAlerts.ts
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { NotificationAlert } from '@/types';
-import * as api from '@/api/mockService';
+import { NotificationAlert, ApiResponse } from '@/types';
+import apiService from '@/api/apiService'; // Changed from mockService
+import * as mockApi from '@/api/mockService'; // Keep for generateNewMockNotification if needed for simulation
 import { toast } from 'sonner'; // Using sonner for toasts
 import { BellRing, CheckCircle, Info, AlertTriangle as AlertTriangleIcon, XCircle } from 'lucide-react'; // Renamed to avoid conflict
 
+export interface PaginationInfo { // If alerts endpoint is paginated
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages?: number;
+}
+
 export interface UseAlertsReturn {
   notifications: NotificationAlert[];
+  pagination?: PaginationInfo | null; // Optional pagination
   unreadCount: number;
   isLoading: boolean;
   error: Error | null;
@@ -46,97 +55,150 @@ const getToastOptions = (alert: NotificationAlert) => {
 };
 
 
-export const useAlerts = (pollInterval: number = 15000): UseAlertsReturn => { // Poll every 15 seconds for new mock alerts
+export const useAlerts = (pollInterval: number = 15000): UseAlertsReturn => {
   const [notifications, setNotifications] = useState<NotificationAlert[]>([]);
+  const [pagination, setPagination] = useState<PaginationInfo | null>(null); // If API paginates alerts
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<Error | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  const fetchNotifications = useCallback(async (showToastsForNew: boolean = false) => {
-    if(!showToastsForNew) setIsLoading(true); // Only show global loading on initial manual fetch
+  const fetchNotifications = useCallback(async (showToastsForNew: boolean = false, page: number = 1, pageSize: number = 20) => {
+    if (!showToastsForNew) setIsLoading(true);
     setError(null);
     try {
       const existingIds = new Set(notifications.map(n => n.id));
-      const data = await api.getNotifications();
-      setNotifications(data);
+      const response = await apiService.get<ApiResponse<NotificationAlert[]>>('/alerts', {
+        params: { page, pageSize, sortBy: 'timestamp', order: 'desc' } // Example params
+      });
+
+      const fetchedNotifications = response.data.data || [];
+      setNotifications(fetchedNotifications);
+      setPagination(response.data.pagination || null);
 
       if (showToastsForNew) {
-        const newAlerts = data.filter(n => !existingIds.has(n.id) && !n.read);
+        const newAlerts = fetchedNotifications.filter(n => !existingIds.has(n.id) && !n.read);
         newAlerts.forEach(alert => {
-          const { icon, style } = getToastOptions(alert);
+          const { icon } = getToastOptions(alert);
           toast(alert.title, {
             description: alert.description,
             icon: icon,
-            // style: style, // Sonner might not support style prop directly like this, uses classes or preset types
-            // Instead, we can use severity for sonner types if available or just rely on icon
-            // For now, let's keep it simple
-            action: alert.link ? { label: "View", onClick: () => console.log("Navigate to:", alert.link) } : undefined,
+            action: alert.link ? { label: "View", onClick: () => { /* TODO: navigate(alert.link) */ console.log("Navigate to:", alert.link); } } : undefined,
           });
         });
       }
     } catch (err: any) {
-      setError(err);
+      setError(err); // Axios error object
     } finally {
-      if(!showToastsForNew) setIsLoading(false);
+      if (!showToastsForNew) setIsLoading(false);
     }
-  }, [notifications]); // Include notifications in dependency array for existingIds check
+  }, [notifications]); // notifications in dep array for existingIds check
 
   const markAsRead = useCallback(async (notificationId: string) => {
+    // Optimistic update
+    setNotifications(prev =>
+      prev.map(n => n.id === notificationId ? { ...n, read: true } : n)
+    );
     try {
-      await api.markNotificationAsRead(notificationId);
-      setNotifications(prev =>
-        prev.map(n => n.id === notificationId ? { ...n, read: true } : n)
-      );
+      // API call to mark as read, e.g., PUT /alerts/:id/read
+      await apiService.put(`/alerts/${notificationId}/read`);
     } catch (err: any) {
-      console.error("Failed to mark notification as read:", err);
-      // Optionally show a toast error
+      console.error("Failed to mark notification as read on server:", err);
+      // Revert optimistic update if API call fails
+      setNotifications(prev =>
+        prev.map(n => n.id === notificationId ? { ...n, read: false } : n)
+      );
+      toast.error("Failed to mark notification as read.");
     }
   }, []);
 
   const markAllAsRead = useCallback(async () => {
+    const previouslyUnread = notifications.filter(n => !n.read);
+    setNotifications(prev => prev.map(n => ({ ...n, read: true }))); // Optimistic
     try {
-      await api.markAllNotificationsAsRead();
-      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+      // API call to mark all as read, e.g., POST /alerts/mark-all-read
+      await apiService.post('/alerts/mark-all-read');
     } catch (err: any) {
-      console.error("Failed to mark all notifications as read:", err);
+      console.error("Failed to mark all notifications as read on server:", err);
+      // Revert optimistic update
+      setNotifications(prev => prev.map(n => previouslyUnread.find(un => un.id === n.id) ? {...n, read: false} : n ));
+      toast.error("Failed to mark all notifications as read.");
     }
-  }, []);
+  }, [notifications]);
 
   // Initial fetch
   useEffect(() => {
     fetchNotifications(false);
-  }, [fetchNotifications]); // fetchNotifications is stable due to useCallback
+  }, []); // Removed fetchNotifications from here to avoid re-triggering on notifications state change from polling
 
-  // Simulate receiving new alerts (e.g., via WebSockets)
+   // Polling for new alerts (can be replaced with WebSockets)
   useEffect(() => {
-    if (intervalRef.current) clearInterval(intervalRef.current); // Clear existing interval
+    if (intervalRef.current) clearInterval(intervalRef.current);
 
-    intervalRef.current = setInterval(async () => {
-      console.log("useAlerts: Polling for new mock notifications...");
-      // Simulate a chance of a new notification appearing
-      if (Math.random() < 0.3) { // 30% chance to generate a new alert
-        api.generateNewMockNotification(); // This adds to the mock DB
-        await fetchNotifications(true); // Fetch all and show toasts for new ones
-      } else {
-        // Or just fetch to see if any were marked read elsewhere, etc.
-        // For a simple mock, we only care about generating new ones.
-        // In a real scenario, WebSocket would push, or polling would get latest state.
-      }
-    }, pollInterval);
+    const poll = async () => {
+        console.log("useAlerts: Polling for new notifications from API...");
+        try {
+            // Fetch only new notifications or a small number of recent ones
+            // This depends on how the backend /alerts endpoint is designed
+            // For now, we'll refetch the first page and let the toast logic handle new ones.
+            const response = await apiService.get<ApiResponse<NotificationAlert[]>>('/alerts', {
+                params: { page: 1, pageSize: 20, sortBy: 'timestamp', order: 'desc' }
+            });
+            const fetchedNotifications = response.data.data || [];
+            const existingIds = new Set(notifications.map(n => n.id));
 
+            const newAlertsFound = fetchedNotifications.some(n => !existingIds.has(n.id));
+
+            if (newAlertsFound) {
+                 // Merge new and existing, then sort and update state to show new ones in dropdown
+                setNotifications(prev => {
+                    const all = [...prev];
+                    fetchedNotifications.forEach(fn => {
+                        if (!all.find(ex => ex.id === fn.id)) {
+                            all.push(fn);
+                        } else { // update existing if changed
+                            const idx = all.findIndex(ex => ex.id === fn.id);
+                            all[idx] = fn;
+                        }
+                    });
+                    return all.sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+                });
+
+                // Show toasts for genuinely new and unread alerts
+                const trulyNewUnreadAlerts = fetchedNotifications.filter(n => !existingIds.has(n.id) && !n.read);
+                trulyNewUnreadAlerts.forEach(alert => {
+                    const { icon } = getToastOptions(alert);
+                    toast(alert.title, {
+                        description: alert.description,
+                        icon: icon,
+                        action: alert.link ? { label: "View", onClick: () => { /* TODO: navigate */ console.log("Navigate to:", alert.link); } } : undefined,
+                    });
+                });
+            }
+            // Also update pagination if it changed and we are displaying it
+            if (response.data.pagination) {
+                setPagination(response.data.pagination);
+            }
+
+        } catch (err) {
+            console.error("Error during polling for alerts:", err);
+        }
+    };
+
+    intervalRef.current = setInterval(poll, pollInterval);
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [pollInterval, fetchNotifications]); // Re-run if pollInterval or fetchNotifications changes
+  }, [pollInterval, notifications]); // `notifications` is needed to check existingIds correctly
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
   return {
     notifications,
+    pagination, // if you decide to use it
     unreadCount,
     isLoading,
     error,
-    fetchNotifications: () => fetchNotifications(false), // Expose a version that doesn't show toasts
+    fetchNotifications: () => fetchNotifications(false, 1, 20), // Default params for manual refresh
     markAsRead,
     markAllAsRead,
   };

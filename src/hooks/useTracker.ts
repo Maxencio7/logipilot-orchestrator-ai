@@ -1,7 +1,7 @@
 // src/hooks/useTracker.ts
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { TrackingInfo, TrackingUpdate, ShipmentStatus } from '@/types';
-import * as api from '@/api/mockService';
+import { TrackingInfo, TrackingUpdate, ShipmentStatus, ApiResponse } from '@/types';
+import apiService from '@/api/apiService'; // Changed from mockService
 import { toast } from 'sonner';
 
 export interface UseTrackerReturn {
@@ -42,21 +42,30 @@ export const useTracker = (pollInterval: number = 10000): UseTrackerReturn => { 
     currentShipmentIdRef.current = shipmentId;
 
     try {
-      const data = await api.getTrackingDetailsByShipmentId(shipmentId);
+      // The API spec mentions GET /tracking and GET /tracking/:id
+      // Assuming GET /tracking?shipmentId=:id or GET /tracking/:id for specific shipment
+      const response = await apiService.get<ApiResponse<TrackingInfo>>(`/tracking/${shipmentId}`);
+      // Or if it's /tracking?shipmentId=...
+      // const response = await apiService.get<ApiResponse<TrackingInfo>>('/tracking', { params: { shipmentId } });
+
+      const data = response.data.data;
       if (data) {
         setTrackingInfo(data);
         setIsActive(true);
+
         // Start polling for updates only if tracking info is found and it's not delivered/cancelled
         if (data.currentStatus !== 'Delivered' && data.currentStatus !== 'Cancelled') {
-            if (intervalRef.current) clearInterval(intervalRef.current); // Clear existing interval
+            if (intervalRef.current) clearInterval(intervalRef.current);
             intervalRef.current = setInterval(() => {
-                // Simulate a new update
+                // SIMULATE a new update for now. In a real scenario, this interval might poll a specific
+                // "get latest updates for :id" endpoint, or this would be replaced by WebSockets.
                 setTrackingInfo(prevInfo => {
                     if (!prevInfo || prevInfo.currentStatus === 'Delivered' || prevInfo.currentStatus === 'Cancelled') {
                         if (intervalRef.current) clearInterval(intervalRef.current);
                         return prevInfo;
                     }
 
+                    // Keep existing simulation logic for new updates for now
                     const newStatus = Math.random() > 0.8 ? 'Delayed' : prevInfo.currentStatus === 'Processing' ? 'In Transit' : prevInfo.currentStatus;
                     const newLocation = mockLocations[Math.floor(Math.random() * mockLocations.length)];
                     const newUpdate: TrackingUpdate = {
@@ -70,27 +79,25 @@ export const useTracker = (pollInterval: number = 10000): UseTrackerReturn => { 
                         ...prevInfo,
                         currentStatus: newStatus,
                         currentLocation: newLocation,
-                        updates: [newUpdate, ...prevInfo.updates],
+                        updates: [newUpdate, ...prevInfo.updates].sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()), // ensure sort
                     };
 
-                    // Simulate ETA change alert
                     if (newStatus === 'Delayed' && prevInfo.currentStatus !== 'Delayed') {
                         toast.warning(`Shipment ${prevInfo.shipmentId} Delayed`, {
                             description: `New ETA might be affected. Current location: ${newLocation}`,
                         });
                         updatedInfo.estimatedDelivery = "Delayed - Recalculating ETA";
                     }
-
                     return updatedInfo;
                 });
             }, pollInterval);
         } else {
-             if (intervalRef.current) clearInterval(intervalRef.current); // Stop polling if delivered/cancelled
+             if (intervalRef.current) clearInterval(intervalRef.current);
         }
 
       } else {
         setTrackingInfo(null);
-        setError(new Error(`Shipment ID "${shipmentId}" not found.`));
+        setError(new Error(`Shipment ID "${shipmentId}" not found or no tracking data available.`));
         setIsActive(false);
         if (intervalRef.current) clearInterval(intervalRef.current);
       }

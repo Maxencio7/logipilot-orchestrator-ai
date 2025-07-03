@@ -86,6 +86,7 @@ const ShipmentsPage = () => {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingShipment, setEditingShipment] = useState<Shipment | null>(null);
   const [shipmentToDelete, setShipmentToDelete] = useState<Shipment | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false); // Local state for delete operation
 
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<ShipmentStatus | 'all'>('all');
@@ -158,8 +159,17 @@ const ShipmentsPage = () => {
 
   const confirmDelete = async () => {
     if (shipmentToDelete) {
-      await removeShipment(shipmentToDelete.id);
-      setShipmentToDelete(null);
+      setIsDeleting(true);
+      try {
+        await removeShipment(shipmentToDelete.id);
+        // Toast for success will be shown by hook or could be added here
+      } catch (e) {
+        // Toast for error will be shown by apiService interceptor or hook
+        console.error("Deletion failed", e);
+      } finally {
+        setIsDeleting(false);
+        setShipmentToDelete(null);
+      }
     }
   };
 
@@ -405,8 +415,8 @@ const ShipmentsPage = () => {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => setShipmentToDelete(null)}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDelete} className="bg-red-600 hover:bg-red-700">
-              {isLoading && shipmentToDelete ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
+            <AlertDialogAction onClick={confirmDelete} className="bg-red-600 hover:bg-red-700" disabled={isDeleting}>
+              {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>

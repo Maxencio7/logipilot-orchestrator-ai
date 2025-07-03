@@ -86,6 +86,7 @@ const ClientsPage = () => {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
   const [clientToDelete, setClientToDelete] = useState<Client | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false); // Local state for delete
   const [viewingActivityClient, setViewingActivityClient] = useState<Client | null>(null);
   const [activitySummary, setActivitySummary] = useState<ClientActivitySummary | null>(null);
   const [isActivityLoading, setIsActivityLoading] = useState(false);
@@ -151,8 +152,17 @@ const ClientsPage = () => {
 
   const confirmDelete = async () => {
     if (clientToDelete) {
-      await removeClient(clientToDelete.id);
-      setClientToDelete(null);
+      setIsDeleting(true);
+      try {
+        await removeClient(clientToDelete.id);
+        // Success toast might be handled by hook or globally, or added here
+      } catch (e) {
+        // Error toast handled by apiService interceptor or hook
+        console.error("Client deletion failed", e);
+      } finally {
+        setIsDeleting(false);
+        setClientToDelete(null);
+      }
     }
   };
 
@@ -391,9 +401,9 @@ const ClientsPage = () => {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDelete} className="bg-red-600 hover:bg-red-700">
-             {isLoading && clientToDelete ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
+            <AlertDialogCancel onClick={() => setClientToDelete(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-red-600 hover:bg-red-700" disabled={isDeleting}>
+             {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
               Delete Client
             </AlertDialogAction>
           </AlertDialogFooter>

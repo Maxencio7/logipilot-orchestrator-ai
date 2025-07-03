@@ -80,6 +80,7 @@ const FleetPage = () => {
   const [isVehicleFormOpen, setIsVehicleFormOpen] = useState(false);
   const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
   const [vehicleToDelete, setVehicleToDelete] = useState<Vehicle | null>(null);
+  const [isDeletingVehicle, setIsDeletingVehicle] = useState(false);
 
   // States for Maintenance Logs (contextual to selected vehicle)
   const [selectedVehicleForLogs, setSelectedVehicleForLogs] = useState<Vehicle | null>(null);
@@ -88,6 +89,7 @@ const FleetPage = () => {
   const [isLogFormOpen, setIsLogFormOpen] = useState(false);
   const [editingLog, setEditingLog] = useState<MaintenanceLog | null>(null);
   const [logToDelete, setLogToDelete] = useState<MaintenanceLog | null>(null);
+  const [isDeletingLog, setIsDeletingLog] = useState(false);
 
   // States for Driver Assignments (contextual to selected vehicle)
   const [selectedVehicleForAssignments, setSelectedVehicleForAssignments] = useState<Vehicle | null>(null);
@@ -96,6 +98,7 @@ const FleetPage = () => {
   const [isAssignmentFormOpen, setIsAssignmentFormOpen] = useState(false);
   const [editingAssignment, setEditingAssignment] = useState<DriverAssignment | null>(null);
   const [assignmentToDelete, setAssignmentToDelete] = useState<DriverAssignment | null>(null);
+  const [isDeletingAssignment, setIsDeletingAssignment] = useState(false);
 
   // Forms
   const vehicleForm = useForm<VehicleFormData>({ resolver: zodResolver(vehicleFormSchema), defaultValues: {type: 'Truck', status: 'Idle'} });
@@ -148,9 +151,20 @@ const FleetPage = () => {
   const openVehicleEditForm = (vehicle: Vehicle) => { setEditingVehicle(vehicle); vehicleForm.reset(vehicle); setIsVehicleFormOpen(true); };
   const confirmVehicleDelete = async () => {
     if (vehicleToDelete) {
-      try { await api.deleteVehicle(vehicleToDelete.id); toast({ title: "Success", description: "Vehicle deleted." }); fetchVehicles(); }
-      catch (e) { toast({ title: "Error", description: "Failed to delete vehicle.", variant: "destructive" }); }
-      setVehicleToDelete(null);
+      setIsDeletingVehicle(true);
+      try {
+        await api.deleteVehicle(vehicleToDelete.id);
+        toast({ title: "Success", description: "Vehicle deleted." });
+        fetchVehicles();
+      }
+      catch (e) {
+        // Toast error handled by apiService interceptor
+        console.error("Failed to delete vehicle", e);
+      }
+      finally {
+        setIsDeletingVehicle(false);
+        setVehicleToDelete(null);
+      }
     }
   };
 
@@ -172,9 +186,17 @@ const FleetPage = () => {
   const openLogEditForm = (log: MaintenanceLog) => { setEditingLog(log); logForm.reset(log); setIsLogFormOpen(true); };
   const confirmLogDelete = async () => {
     if (logToDelete && selectedVehicleForLogs) {
-      try { await api.deleteMaintenanceLog(logToDelete.id); toast({ title: "Success", description: "Log deleted." }); fetchLogsForVehicle(selectedVehicleForLogs.id); }
-      catch (e) { toast({ title: "Error", description: "Failed to delete log.", variant: "destructive" }); }
-      setLogToDelete(null);
+      setIsDeletingLog(true);
+      try {
+        await api.deleteMaintenanceLog(logToDelete.id);
+        toast({ title: "Success", description: "Log deleted." });
+        fetchLogsForVehicle(selectedVehicleForLogs.id);
+      }
+      catch (e) { console.error("Failed to delete log", e); }
+      finally {
+        setIsDeletingLog(false);
+        setLogToDelete(null);
+      }
     }
   };
 
@@ -196,9 +218,18 @@ const FleetPage = () => {
   const openAssignmentEditForm = (assignment: DriverAssignment) => { setEditingAssignment(assignment); assignmentForm.reset(assignment); setIsAssignmentFormOpen(true); };
   const confirmAssignmentDelete = async () => {
     if (assignmentToDelete && selectedVehicleForAssignments) {
-      try { await api.deleteDriverAssignment(assignmentToDelete.id); toast({ title: "Success", description: "Assignment deleted." }); fetchAssignmentsForVehicle(selectedVehicleForAssignments.id); fetchVehicles(); }
-      catch (e) { toast({ title: "Error", description: "Failed to delete assignment.", variant: "destructive" }); }
-      setAssignmentToDelete(null);
+      setIsDeletingAssignment(true);
+      try {
+        await api.deleteDriverAssignment(assignmentToDelete.id);
+        toast({ title: "Success", description: "Assignment deleted." });
+        fetchAssignmentsForVehicle(selectedVehicleForAssignments.id);
+        fetchVehicles(); // To update assigned driver on vehicle if needed
+      }
+      catch (e) { console.error("Failed to delete assignment", e); }
+      finally {
+        setIsDeletingAssignment(false);
+        setAssignmentToDelete(null);
+      }
     }
   };
 
@@ -332,7 +363,7 @@ const FleetPage = () => {
           </form>
         </DialogContent>
       </Dialog>
-      <AlertDialog open={!!vehicleToDelete} onOpenChange={(isOpen) => { if(!isOpen) setVehicleToDelete(null);}}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete Vehicle?</AlertDialogTitle><AlertDialogDescription>This will permanently delete vehicle {vehicleToDelete?.id}.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={confirmVehicleDelete} className="bg-red-600 hover:bg-red-700">Delete</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
+      <AlertDialog open={!!vehicleToDelete} onOpenChange={(isOpen) => { if(!isOpen) setVehicleToDelete(null);}}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete Vehicle?</AlertDialogTitle><AlertDialogDescription>This will permanently delete vehicle {vehicleToDelete?.id}.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={confirmVehicleDelete} className="bg-red-600 hover:bg-red-700" disabled={isDeletingVehicle}>{isDeletingVehicle ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Trash2 className="mr-2 h-4 w-4" />}Delete</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
 
       {/* Maintenance Log Form Dialog */}
        <Dialog open={isLogFormOpen} onOpenChange={setIsLogFormOpen}>
@@ -349,7 +380,7 @@ const FleetPage = () => {
           </form>
         </DialogContent>
       </Dialog>
-      <AlertDialog open={!!logToDelete} onOpenChange={(isOpen) => { if(!isOpen) setLogToDelete(null);}}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete Log?</AlertDialogTitle><AlertDialogDescription>This will permanently delete log {logToDelete?.id}.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={confirmLogDelete} className="bg-red-600 hover:bg-red-700">Delete</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
+      <AlertDialog open={!!logToDelete} onOpenChange={(isOpen) => { if(!isOpen) setLogToDelete(null);}}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete Log?</AlertDialogTitle><AlertDialogDescription>This will permanently delete log {logToDelete?.id}.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={confirmLogDelete} className="bg-red-600 hover:bg-red-700" disabled={isDeletingLog}>{isDeletingLog ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Trash2 className="mr-2 h-4 w-4" />}Delete</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
 
       {/* Driver Assignment Form Dialog */}
       <Dialog open={isAssignmentFormOpen} onOpenChange={setIsAssignmentFormOpen}>
@@ -364,7 +395,7 @@ const FleetPage = () => {
           </form>
         </DialogContent>
       </Dialog>
-      <AlertDialog open={!!assignmentToDelete} onOpenChange={(isOpen) => { if(!isOpen) setAssignmentToDelete(null);}}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete Assignment?</AlertDialogTitle><AlertDialogDescription>This will permanently delete assignment {assignmentToDelete?.id}.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={confirmAssignmentDelete} className="bg-red-600 hover:bg-red-700">Delete</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
+      <AlertDialog open={!!assignmentToDelete} onOpenChange={(isOpen) => { if(!isOpen) setAssignmentToDelete(null);}}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete Assignment?</AlertDialogTitle><AlertDialogDescription>This will permanently delete assignment {assignmentToDelete?.id}.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={confirmAssignmentDelete} className="bg-red-600 hover:bg-red-700" disabled={isDeletingAssignment}>{isDeletingAssignment ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Trash2 className="mr-2 h-4 w-4" />}Delete</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
 
     </div>
   );
