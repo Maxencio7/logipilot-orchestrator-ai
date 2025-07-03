@@ -3,8 +3,11 @@
 import {
     SummaryData, Metric, ShipmentPreview, AlertPreview,
     Shipment, ShipmentFormData, ShipmentStatus,
-    Client, ClientFormData, ClientStatus, ClientActivitySummary
+    Client, ClientFormData, ClientStatus, ClientActivitySummary,
+    SearchResultItem // Imported from types/index.ts
 } from '@/types';
+
+// Local definition of SearchResultItem is no longer needed.
 
 const mockMetrics: Metric[] = [
   { title: 'Active Shipments', value: '1,305', change: '+15%', iconName: 'Package', color: 'text-blue-600', bgColor: 'bg-blue-50' },
@@ -41,6 +44,36 @@ export const fetchSummaryData = (): Promise<SummaryData> => {
       console.log('Mock API: Responding with summary data.');
       resolve(mockApiSummary);
     }, 500); // Simulate network delay
+  });
+};
+
+// --- Alerts Mock API ---
+let mockAlertsDB: AlertPreview[] = [
+  { id: 'alert1', title: 'Shipment SH008 Overdue', description: 'Exceeded ETA by 2 hours due to congestion.', severity: 'High', category: 'Shipment', timestamp: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString() },
+  { id: 'alert2', title: 'Maintenance Required - TRK04', description: 'Vehicle TRK04 needs scheduled maintenance soon.', severity: 'Medium', category: 'Fleet', timestamp: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString() },
+  { id: 'alert3', title: 'New High-Value Client Onboarded', description: 'Ensure "White Glove" service for Client XYZ.', severity: 'Info', category: 'System', timestamp: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString() },
+  { id: 'alert4', title: 'Low Stock Warning: Part ABC', description: 'Stock for Part ABC is below 10 units.', severity: 'Medium', category: 'Inventory', timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString() },
+  { id: 'alert5', title: 'System Update Scheduled', description: 'A system update is scheduled for Sunday at 2 AM.', severity: 'Info', category: 'System', timestamp: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString() },
+  { id: 'alert6', title: 'Client "Innovate Solutions" Query', description: 'Client "Innovate Solutions" has a query regarding shipment SH005.', severity: 'Low', category: 'Client', timestamp: new Date(Date.now() - 30 * 60 * 1000).toISOString() },
+];
+
+export const getAlerts = (filters?: { query?: string }): Promise<AlertPreview[]> => {
+  console.log('Mock API: Fetching alerts with filters:', filters);
+  return new Promise(resolve => {
+    setTimeout(() => {
+      let result = [...mockAlertsDB];
+      if (filters?.query) {
+        const q = filters.query.toLowerCase();
+        result = result.filter(a =>
+          a.id.toLowerCase().includes(q) ||
+          a.title.toLowerCase().includes(q) ||
+          a.description.toLowerCase().includes(q) ||
+          a.category.toLowerCase().includes(q)
+        );
+      }
+      // Sort by timestamp descending (newest first)
+      resolve(result.sort((a, b) => new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime()));
+    }, 400); // Simulate network delay
   });
 };
 
@@ -270,4 +303,71 @@ export const getClientActivitySummary = (clientId: string): Promise<ClientActivi
             resolve(summary);
         }, 400);
     });
+};
+
+// --- Global Search ---
+export const searchGlobal = async (query: string): Promise<SearchResultItem[]> => {
+  console.log('Mock API: Performing global search for query:', query);
+  if (!query || query.trim() === "") {
+    return Promise.resolve([]);
+  }
+
+  try {
+    const [shipmentResults, clientResults, alertResults] = await Promise.all([
+      getShipments({ query }),
+      getClients({ query }),
+      getAlerts({ query })
+    ]);
+
+    const mappedShipments: SearchResultItem[] = shipmentResults.map(s => ({
+      type: 'Shipment',
+      id: s.id,
+      title: `Shipment: ${s.id} - ${s.client}`,
+      description: `To: ${s.destination}, Status: ${s.status}, Contents: ${s.contents || 'N/A'}`,
+      link: `/shipments/${s.id}`
+    }));
+
+    const mappedClients: SearchResultItem[] = clientResults.map(c => ({
+      type: 'Client',
+      id: c.id,
+      title: `Client: ${c.name} (${c.id})`,
+      description: `Email: ${c.email}, Company: ${c.companyName || 'N/A'}, Status: ${c.status}`,
+      link: `/clients/${c.id}`
+    }));
+
+    const mappedAlerts: SearchResultItem[] = alertResults.map(a => ({
+      type: 'Alert',
+      id: a.id,
+      title: `Alert: ${a.title} (${a.category})`,
+      description: a.description,
+      link: `/alerts/${a.id}` // Assuming an /alerts/:id page will exist or be created
+    }));
+
+    const combinedResults = [...mappedShipments, ...mappedClients, ...mappedAlerts];
+
+    // Simple sort: exact ID matches or title matches first, then by type
+    // This is a basic example; real ranking is complex.
+    combinedResults.sort((a, b) => {
+        const aQueryLc = query.toLowerCase();
+        const bQueryLc = query.toLowerCase();
+        const aTitleLc = a.title.toLowerCase();
+        const bTitleLc = b.title.toLowerCase();
+        const aIdLc = a.id.toLowerCase();
+        const bIdLc = b.id.toLowerCase();
+
+        if (aIdLc === aQueryLc && bIdLc !== bQueryLc) return -1;
+        if (bIdLc === bQueryLc && aIdLc !== aQueryLc) return 1;
+        if (aTitleLc.includes(aQueryLc) && !bTitleLc.includes(bQueryLc)) return -1;
+        if (bTitleLc.includes(bQueryLc) && !aTitleLc.includes(bQueryLc)) return 1;
+
+        return a.type.localeCompare(b.type);
+    });
+
+    console.log(`Mock API: Global search responded with ${combinedResults.length} items.`);
+    return combinedResults;
+
+  } catch (error) {
+    console.error('Mock API: Error during global search:', error);
+    return Promise.reject(error);
+  }
 };
