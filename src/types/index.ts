@@ -78,6 +78,15 @@ export interface ClientActivitySummary {
   satisfactionTrend?: number[]; // e.g., [80, 85, 90]
 }
 
+// Unified Search Result Item for Global Search
+export interface SearchResultItem {
+  type: 'Shipment' | 'Client' | 'Alert';
+  id: string; // Original ID of the item
+  title: string; // Formatted title for display
+  description: string; // Formatted description for display
+  link: string; // URL to navigate to the item's page
+}
+
 
 export interface AlertPreview {
   id: string;
