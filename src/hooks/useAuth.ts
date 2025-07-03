@@ -5,31 +5,25 @@ import { ApiResponse, MockUser as UserType } from '@/types'; // Use UserType fro
 
 export type UserRole = 'admin' | 'manager' | 'driver' | 'client' | 'guest';
 
-export interface MockUser { // This can be renamed to User if MockUser is not used elsewhere, or use UserType
-  id: string;
-  name: string;
-  email: string;
-  role: UserRole;
-  avatarUrl?: string;
-}
+// No longer need local MockUser, UserType from @/types is used.
 
 interface AuthContextType {
-  user: UserType | null; // Changed from MockUser to UserType
+  user: UserType | null;
   isLoading: boolean;
-  login: (credentials: {email: string, password: string}) => Promise<boolean>; // Updated login signature
+  login: (credentials: {email: string, password: string}) => Promise<boolean>;
   logout: () => void;
-  switchRole: (newRole: UserRole) => void; // For debugging/testing roles
+  switchRole: (newRole: UserRole) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Sample users for different roles
-const mockUsers: Record<UserRole, MockUser> = {
+// Sample users for different roles - should use UserType
+const mockUsers: Record<UserRole, UserType> = {
   admin: { id: 'USR_ADMIN', name: 'Admin User', email: 'admin@logipilot.com', role: 'admin', avatarUrl: '/placeholder.svg' },
   manager: { id: 'USR_MANAGER', name: 'Manager Mike', email: 'manager@logipilot.com', role: 'manager', avatarUrl: '/placeholder.svg' },
   driver: { id: 'USR_DRIVER', name: 'Driver Dave', email: 'driver@logipilot.com', role: 'driver', avatarUrl: '/placeholder.svg' },
   client: { id: 'USR_CLIENT', name: 'Client Clara', email: 'client@logipilot.com', role: 'client', avatarUrl: '/placeholder.svg' },
-  guest: { id: 'USR_GUEST', name: 'Guest User', email: 'guest@logipilot.com', role: 'guest' },
+  guest: { id: 'USR_GUEST', name: 'Guest User', email: 'guest@logipilot.com', role: 'guest', avatarUrl: undefined }, // Ensure all fields match UserType
 };
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
@@ -134,7 +128,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user: user as MockUser, isLoading, login, logout, switchRole }}>
+    // Removed 'as MockUser' assertion, user state is already UserType | null
+    <AuthContext.Provider value={{ user, isLoading, login, logout, switchRole }}>
       {children}
     </AuthContext.Provider>
   );
