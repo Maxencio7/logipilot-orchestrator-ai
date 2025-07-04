@@ -1,0 +1,10 @@
+fastapi
+uvicorn[standard]
+pydantic
+python-jose[cryptography]
+passlib[bcrypt]
+sqlalchemy
+alembic
+python-multipart
+pydantic-settings # For settings management
+email-validator # For email validation in Pydantic models
